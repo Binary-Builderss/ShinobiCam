@@ -1,0 +1,7 @@
+# Runtime - Python 3.11 x64 on Windows 10/11 (versions checked on PyPI 2026-10: win_amd64 wheels available)
+mediapipe==0.10.35
+opencv-contrib-python==4.14.0.94   # mediapipe depends on the contrib build: do NOT also install opencv-python
+numpy==2.4.6                        # last numpy line supporting Python 3.11
+pillow==12.3.0
+pyvirtualcam==0.15.0
+pygrabber==0.2; sys_platform == "win32"   # webcam names via DirectShow

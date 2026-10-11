@@ -1,0 +1,27 @@
+name: build-windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: x64
+      - name: Setup
+        shell: pwsh
+        run: ./scripts/setup.ps1
+      - name: Test, build, selftest
+        shell: pwsh
+        run: ./scripts/build.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShinobiCam-win64
+          path: dist/ShinobiCam-win64.zip
