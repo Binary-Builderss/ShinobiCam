@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import logging
 import logging.handlers
+import os
 import sys
 import threading
 
@@ -84,6 +85,10 @@ def main(argv=None) -> int:
     ap.add_argument("--selftest", action="store_true", help="verifica modello, asset e backend; esito in selftest.txt")
     ap.add_argument("--simulate", metavar="OUT.mp4", help="genera un video dimostrativo dell'effetto, senza webcam")
     a, _ = ap.parse_known_args(argv)  # Finder may add -psn_* to .app launches
+    if getattr(sys, "frozen", False):
+        # mediapipe imports matplotlib; PyInstaller gives it a new temp dir per launch -> ~20 s font-cache
+        # rebuild every start. Keep the cache in our data dir instead.
+        os.environ["MPLCONFIGDIR"] = str(data_dir() / "matplotlib")
     setup_logging()
     if a.selftest:
         return selftest()

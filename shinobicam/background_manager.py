@@ -52,6 +52,12 @@ class BackgroundManager:
             log.error("salvataggio sfondo fallito: %s", self.path)
         return "done"
 
+    def remaining(self, now: float) -> float | None:
+        """Seconds left in the countdown, None when not counting down."""
+        if self._capture_from is None or now >= self._capture_from:
+            return None
+        return self._capture_from - now
+
     def message(self, now: float) -> str:
         if self._capture_from is None:
             return ""

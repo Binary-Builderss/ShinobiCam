@@ -7,6 +7,7 @@ Engine and background state are touched only by the render thread; other threads
 from __future__ import annotations
 
 import logging
+import math
 import queue
 import threading
 import time
@@ -38,9 +39,23 @@ def placeholder_frame(w: int, h: int, text: str) -> np.ndarray:
     return img
 
 
-def put_banner(img: np.ndarray, text: str) -> None:
+def put_banner(img: np.ndarray, text: str, progress: float | None = None) -> None:
     cv2.rectangle(img, (0, 0), (img.shape[1], 44), (0, 0, 0), -1)
-    cv2.putText(img, text, (14, 31), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 220, 255), 2, cv2.LINE_AA)
+    cv2.putText(img, text, (14, 31), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (26, 122, 255), 2, cv2.LINE_AA)
+    if progress is not None:
+        cv2.rectangle(img, (0, 40), (int(img.shape[1] * progress), 44), (60, 56, 229), -1)
+
+
+def put_countdown(img: np.ndarray, seconds: float) -> None:
+    """Big centred number, readable from a few metres away while getting out of frame."""
+    h, w = img.shape[:2]
+    c, r = (w // 2, h // 2), int(h * 0.16)
+    layer = img.copy()
+    cv2.circle(layer, c, r, (20, 20, 20), -1, cv2.LINE_AA)
+    cv2.addWeighted(layer, 0.65, img, 0.35, 0, dst=img)
+    text, scale = str(max(math.ceil(seconds), 1)), h / 140
+    (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_DUPLEX, scale, 6)
+    cv2.putText(img, text, (c[0] - tw // 2, c[1] + th // 2), cv2.FONT_HERSHEY_DUPLEX, scale, (26, 122, 255), 6, cv2.LINE_AA)
 
 
 class Pipeline:
@@ -159,7 +174,11 @@ class Pipeline:
             "holding": self.trigger.holding,
             "phase": self.engine.phase.value,
             "profile": self.profile.name if self.profile else "",
-            "background": self.background.plate is not None,
+            "background": self.background.plate is not None and
+                          self.background.plate.shape[:2] == (self.settings.height, self.settings.width),
+            "background_other_res": self.background.plate is not None,
+            "capturing_background": self.background.capturing,
+            "recording_seal": self._calibrator is not None,
             "recognition_error": self.recognition_error,
         }
 
@@ -233,8 +252,11 @@ class Pipeline:
             draw_hands(img, self._hands[1])
             cv2.putText(img, f"conf {self.confidence:.2f} / soglia {self.settings.threshold:.2f}  {self.engine.phase.value}",
                         (14, img.shape[0] - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+        remaining = cal.remaining(now) if cal else self.background.remaining(now)
+        if remaining is not None:
+            put_countdown(img, remaining)
         if cal:
-            put_banner(img, cal.message(now))
+            put_banner(img, cal.message(now), None if remaining is not None else cal.progress(now))
         elif bg_msg:
             put_banner(img, bg_msg)
         return img

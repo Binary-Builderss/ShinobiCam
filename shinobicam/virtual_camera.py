@@ -24,6 +24,18 @@ class VirtualCameraError(RuntimeError):
     pass
 
 
+def obs_running() -> bool:
+    """True if OBS Studio is open. Only checked on macOS, where sharing the device fails silently
+    (Teams/Discord get OBS's scene); on Windows pyvirtualcam already reports the device as busy."""
+    if sys.platform != "darwin":
+        return False
+    import subprocess
+    try:
+        return subprocess.run(["pgrep", "-x", "OBS"], capture_output=True, timeout=5).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def explain(err: Exception) -> str:
     msg = str(err)
     low = msg.lower()

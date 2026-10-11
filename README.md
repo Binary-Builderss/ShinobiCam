@@ -61,19 +61,29 @@ Se Windows SmartScreen avvisa che l'app non è riconosciuta: **Ulteriori informa
 
 ## 3. Primo utilizzo
 
-1. **Webcam fisica**: scegli la tua webcam. Non selezionare "OBS Virtual Camera" come sorgente:
-   l'app lo segnala e lo blocca.
-2. **Avvia webcam virtuale**. In alternativa usa **Solo anteprima (simulazione)** per provare
-   senza inviare nulla a Teams.
-3. **Calibra sfondo**: hai 5 secondi per uscire dall'inquadratura, poi l'app acquisisce la stanza
-   vuota. Così durante la sostituzione sparisci davvero. La webcam non deve muoversi: se la
-   sposti o cambia molto la luce, ricalibra.
+La colonna a sinistra è una checklist in 4 passi: ogni passo mostra un numero finché è da fare,
+**✓** quando è completato e **!** quando richiede attenzione. In alto a destra un badge indica
+cosa ricevono Teams/Discord: **IN ONDA** (rosso), **SOLO ANTEPRIMA** (ambra) o **SPENTO**.
+Gli avvisi compaiono in una barra sotto l'anteprima, senza finestre da chiudere.
+
+1. **Avvia la webcam**: scegli la webcam fisica (non "OBS Virtual Camera": l'app lo blocca) e
+   premi **Avvia webcam virtuale**. Per provare senza inviare nulla usa **Solo anteprima (non va
+   in onda)**. Su macOS, se OBS è aperto, l'app avvisa: chiudilo, altrimenti Teams/Discord
+   vedono OBS al posto di ShinobiCam.
+2. **Calibra lo sfondo**: parte subito un conto alla rovescia di 5 secondi, visibile in grande
+   nell'anteprima. Esci dall'inquadratura e l'app acquisisce la stanza vuota, così durante la
+   sostituzione sparisci davvero. La webcam non deve muoversi: se la sposti o cambia molto la
+   luce, ricalibra.
    - Senza calibrazione l'app funziona in **modalità semplificata**: il tronco compare davanti a te
-     ma resti visibile. Il pannello "Stato" lo indica in arancione.
-4. **Registra sigillo**: dopo 3 secondi di preparazione esegui il sigillo e tienilo per 4 secondi,
-   muovendo leggermente le mani. Le mani devono essere ben illuminate e dentro l'inquadratura.
-5. **Prova**: esegui il sigillo e tienilo per circa 0,3 s. Se il riconoscimento non scatta,
-   premi **F9**.
+     ma resti visibile. Il passo resta segnato con **!**.
+3. **Registra il sigillo**: dopo 3 secondi di preparazione esegui il sigillo e tienilo per 4
+   secondi (barra REC nell'anteprima), muovendo leggermente le mani. Le mani devono essere ben
+   illuminate e dentro l'inquadratura.
+4. **Usala in Teams o Discord**: vedi §4.
+
+Prova: esegui il sigillo. La barra **Sigillo** sotto l'anteprima mostra la confidenza e una tacca
+sulla soglia: quando la supera diventa verde e compare "in tenuta"; dopo circa 0,3 s parte il
+jutsu. Se non scatta, premi **F9** o **Testa sostituzione**.
 
 Sequenza dell'effetto: fumo (0,5 s) → tronco (1,8–2,5 s, regolabile) → fumo (0,5 s) → cooldown
 (3–5 s, regolabile), durante il quale il sigillo viene ignorato.
@@ -81,8 +91,8 @@ Sequenza dell'effetto: fumo (0,5 s) → tronco (1,8–2,5 s, regolabile) → fum
 ### F9 (attivazione manuale)
 
 Su Windows F9 viene registrato come scorciatoia **globale**, quindi funziona anche quando la
-finestra attiva è Teams. Se un'altra app usa già F9, il pannello Stato mostra "F9 (solo con
-finestra attiva)".
+finestra attiva è Teams. Se un'altra app usa già F9, sotto i pulsanti Jutsu compare "F9 funziona
+solo con questa finestra attiva".
 
 Su macOS F9 funziona **solo con la finestra di ShinobiCam attiva** e va premuto con **fn+F9**.
 Durante una riunione usa il sigillo, oppure clicca **Testa sostituzione**. Su Mac non ho
@@ -91,8 +101,8 @@ con Tkinter tendono a causare crash.
 
 ## 4. Configurare Microsoft Teams
 
-1. Avvia ShinobiCam e premi **Avvia webcam virtuale**. Il pallino diventa verde:
-   "Webcam virtuale attiva: OBS Virtual Camera".
+1. Avvia ShinobiCam e premi **Avvia webcam virtuale**. Il badge in alto diventa rosso:
+   "IN ONDA · OBS Virtual Camera".
 2. In Teams (anche su Mac): **… (Impostazioni e altro) → Impostazioni → Dispositivi → Fotocamera** → scegli
    **OBS Virtual Camera**. Durante una riunione puoi farlo anche dalla freccia accanto al
    pulsante **Fotocamera**.
@@ -103,21 +113,24 @@ Non servono plugin né modifiche a Teams. Finché ShinobiCam è in esecuzione la
 resta attiva. Se la webcam fisica si scollega, Teams vede una schermata "webcam non disponibile"
 e il video riprende da solo quando la webcam torna.
 
-**Ripristina webcam normale** interrompe subito l'effetto e disattiva il riconoscimento: Teams
+**Webcam normale** interrompe subito l'effetto e disattiva il riconoscimento: Teams
 riceve il video della webcam senza modifiche. Per spegnere tutto premi **Arresta**.
 
 ## 5. Impostazioni
+
+Si aprono dal link **Impostazioni** in fondo alla colonna sinistra, in una finestra separata.
+Risoluzione, FPS e backend sono bloccati mentre la webcam è avviata.
 
 | Controllo | Effetto | Quando si applica |
 |---|---|---|
 | Risoluzione | 1280×720 (predefinita), 640×360 o 640×480 per PC lenti | al prossimo Avvia |
 | FPS | 30 / 24 / 15 | al prossimo Avvia |
-| Backend | `obs` (predefinito) / `unitycapture` | al prossimo Avvia |
+| Webcam virtuale | `obs` (predefinito) / `unitycapture` | al prossimo Avvia |
 | Soglia confidenza | più alta = meno falsi positivi, più bassa = riconosce più facilmente | subito |
-| Cooldown | pausa dopo ogni jutsu (3–5 s) | subito |
-| Durata tronco | 1,8–2,5 s | al prossimo jutsu |
+| Pausa dopo il jutsu | secondi in cui il sigillo è ignorato (3–5 s) | subito |
+| Durata del tronco | 1,8–2,5 s | al prossimo jutsu |
 | Debug | mostra landmark delle mani e confidenza **solo nell'anteprima locale**; a Teams non arrivano | subito |
-| Carica tronco PNG | usa un tuo PNG con trasparenza al posto del tronco incluso | al prossimo jutsu |
+| Tronco: Carica PNG… / Predefinito | usa un tuo PNG con trasparenza al posto del tronco incluso | al prossimo jutsu |
 
 I dati utente (impostazioni, sigillo, sfondo, log) sono in `%APPDATA%\ShinobiCam` su Windows
 e in `~/Library/Application Support/ShinobiCam` su macOS.
@@ -131,10 +144,10 @@ usati materiali grafici di terzi.
 |---|---|
 | "Webcam virtuale non trovata" | Installa OBS 30+ ed esegui la procedura del §1 (avvia/ferma la videocamera virtuale una volta). |
 | "La webcam virtuale è già in uso" | Chiudi OBS o ferma la sua videocamera virtuale; chiudi altre istanze di ShinobiCam. |
-| Teams non mostra "OBS Virtual Camera" | Riavvia Teams dopo aver avviato ShinobiCam; controlla che il pallino sia verde. |
-| Teams mostra un'immagine nera o ferma | Premi **Arresta** e poi **Avvia**; verifica che nessun'altra app stia usando la webcam fisica (Teams compreso: in Teams scegli OBS Virtual Camera, non la webcam fisica). |
+| Teams non mostra "OBS Virtual Camera" | Riavvia Teams dopo aver avviato ShinobiCam; controlla che il badge in alto dica "IN ONDA". |
+| Teams mostra un'immagine nera o ferma | Premi **Arresta** e poi **Avvia webcam virtuale**; verifica che nessun'altra app stia usando la webcam fisica (Teams compreso: in Teams scegli OBS Virtual Camera, non la webcam fisica). |
 | "Webcam non disponibile, nuovo tentativo..." | La webcam fisica è occupata da un'altra app o è scollegata. Chiudi le altre app o ricollegala: la riconnessione è automatica. |
-| Il sigillo non viene riconosciuto | Attiva Debug e controlla la confidenza: se resta sotto la soglia, abbassala oppure registra di nuovo il sigillo con luce migliore. Usa F9 come riserva. |
+| Il sigillo non viene riconosciuto | Guarda la barra Sigillo (o attiva Debug nelle Impostazioni): se resta sotto la soglia, abbassala oppure registra di nuovo il sigillo con luce migliore. Usa F9 come riserva. |
 | Il sigillo scatta da solo | Alza la soglia; registra un sigillo più distintivo (non mani aperte o a riposo). |
 | Mani sovrapposte non riconosciute | Durante la registrazione esegui il sigillo così come lo farai davvero: vengono salvate anche le pose in cui MediaPipe vede una sola mano. |
 | Durante il tronco si vede "un fantasma" di me | Lo sfondo non è più valido (luce cambiata, webcam spostata, esposizione automatica): ricalibra lo sfondo. |
@@ -243,10 +256,10 @@ l'immagine reale. I test verificano che il fumo copra il 100% dell'area nel mome
 
 Verificato su macOS (Apple Silicon):
 
-- 51 test automatici superati: gesti, soglie/cooldown, macchina a stati, rendering, composizione
+- 54 test automatici superati: gesti, soglie/cooldown, macchina a stati, rendering, composizione
   con sfondo, modello mancante, webcam assente o persa, backend non installato o occupato,
   arresto durante l'animazione, asset nel bundle, overlay di debug assente dal flusso inviato,
-  GUI Tk;
+  GUI Tk (checklist guidata, badge IN ONDA, avvisi non modali);
 - cattura da webcam reale a 720p e MediaPipe su frame reali (~18 ms per inferenza);
 - build PyInstaller con lo stesso `.spec` ed esecuzione del binario congelato (`--selftest` e `--simulate`);
 - messaggio reale di pyvirtualcam quando OBS non è installato;
@@ -256,7 +269,9 @@ Verificato su macOS (Apple Silicon):
 - `scripts/setup.sh` e `scripts/build.sh`, `ShinobiCam.app` con permesso fotocamera, selftest
   dell'app che apre la OBS Virtual Camera;
 - nomi delle webcam su Mac nello stesso ordine degli indici OpenCV (verificato inviando un
-  colore noto alla camera virtuale).
+  colore noto alla camera virtuale);
+- Discord su Mac con OBS Virtual Camera, provato dall'utente;
+- avvio dell'app: 23 s al primo avvio (cache dei font), 1,6 s dai successivi.
 
 **Non verificato**: Teams su Mac (il dispositivo virtuale funziona, ma non ho aperto Teams),
 l'avvio di `ShinobiCam.app` da Finder su un altro Mac (Gatekeeper), l'esecuzione su Windows, l'eseguibile `.exe`, gli script PowerShell, il

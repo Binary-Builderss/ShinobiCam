@@ -24,6 +24,14 @@ class GestureCalibrator:
         if d is not None:
             self.descriptors.append(d)
 
+    def remaining(self, now: float) -> float | None:
+        """Seconds left before recording starts, None once recording."""
+        return self.t_record - now if now < self.t_record else None
+
+    def progress(self, now: float) -> float:
+        span = self.t_end - self.t_record
+        return min(max((now - self.t_record) / span, 0.0), 1.0)
+
     def message(self, now: float) -> str:
         if now < self.t_record:
             return f"Prepara il sigillo... {self.t_record - now:.0f}"

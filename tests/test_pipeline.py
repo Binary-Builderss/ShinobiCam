@@ -34,6 +34,8 @@ class FakeCamera:
         self.stopped = False
 
     def start(self):
+        self.status = "connessa" if self.available else "webcam non disponibile, nuovo tentativo..."
+
         def run():
             while not self._stop.wait(0.01):
                 if self.available:
