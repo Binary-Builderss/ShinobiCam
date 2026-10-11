@@ -20,8 +20,8 @@ log = logging.getLogger(__name__)
 
 C = {
     "bg": "#121419", "panel": "#1b1e25", "card": "#232731", "line": "#313643", "fg": "#eceef2",
-    "muted": "#98a0ad", "accent": "#ff7a1a", "accent_hi": "#ff9447", "ok": "#35c46a", "warn": "#f2a531",
-    "err": "#ff5c5c", "live": "#c62828", "live_hi": "#a91f1f", "ink": "#15120e", "video": "#0b0c10",
+    "muted": "#98a0ad", "accent": "#e87a30", "accent_hi": "#ec8e51", "ok": "#35c46a", "warn": "#f2a531",
+    "err": "#e05252", "live": "#c62828", "live_hi": "#a91f1f", "ink": "#15120e", "video": "#0b0c10",
 }
 TOAST_COLORS = {"info": C["ok"], "warning": C["warn"], "error": C["err"]}
 TOAST_SECONDS = {"info": 6, "warning": 10, "error": 0}  # 0 = stays until closed or replaced
@@ -35,6 +35,8 @@ def apply_theme(root: tk.Tk) -> dict[str, tkfont.Font]:
         "h": tkfont.Font(root, family=base.cget("family"), size=abs(size) + 1, weight="bold"),
         "small": tkfont.Font(root, family=base.cget("family"), size=max(abs(size) - 1, 9)),
         "badge": tkfont.Font(root, family=base.cget("family"), size=abs(size), weight="bold"),
+        "mono": tkfont.Font(root, family="Consolas" if sys.platform == "win32" else tkfont.nametofont("TkFixedFont").cget("family"),
+                            size=max(abs(size) - 1, 9)),  # fixed-width digits: FPS/confidence don't jitter
     }
     st = ttk.Style(root)
     st.theme_use("clam")  # the only built-in theme that honours custom colours on Windows and macOS
@@ -53,10 +55,12 @@ def apply_theme(root: tk.Tk) -> dict[str, tkfont.Font]:
     st.configure("TButton", background=C["card"], foreground=C["fg"], padding=(12, 7), borderwidth=0)
     st.map("TButton", background=[("disabled", C["panel"]), ("pressed", C["line"]), ("active", C["line"])],
            foreground=[("disabled", C["muted"])])
-    st.configure("Accent.TButton", background=C["accent"], foreground=C["ink"], font=fonts["h"], padding=(14, 10))
+    st.configure("Accent.TButton", background=C["accent"], foreground=C["ink"], font=fonts["h"], padding=(14, 10),
+                 focuscolor=C["ink"])
     st.map("Accent.TButton", background=[("disabled", C["card"]), ("pressed", C["accent_hi"]), ("active", C["accent_hi"])],
            foreground=[("disabled", C["muted"])])
-    st.configure("Danger.TButton", background=C["live"], foreground=C["fg"], font=fonts["h"], padding=(14, 10))
+    st.configure("Danger.TButton", background=C["live"], foreground=C["fg"], font=fonts["h"], padding=(14, 10),
+                 focuscolor=C["fg"])
     st.map("Danger.TButton", background=[("pressed", C["live_hi"]), ("active", C["live_hi"])])
     st.configure("Step.TButton", background=C["line"], padding=(10, 5))
     st.map("Step.TButton", background=[("disabled", C["panel"]), ("pressed", "#454b5b"), ("active", "#3c4250")])
@@ -71,6 +75,8 @@ def apply_theme(root: tk.Tk) -> dict[str, tkfont.Font]:
            foreground=[("disabled", C["muted"])], selectbackground=[("readonly", C["card"])],
            selectforeground=[("readonly", C["fg"])], arrowcolor=[("disabled", C["muted"])])
     st.configure("Horizontal.TScale", background=C["accent"], troughcolor=C["card"], bordercolor=C["panel"])
+    for cls in ("TButton", "TCheckbutton", "Button"):
+        root.option_add(f"*{cls}.cursor", "hand2")
     root.option_add("*TCombobox*Listbox.background", C["card"])
     root.option_add("*TCombobox*Listbox.foreground", C["fg"])
     root.option_add("*TCombobox*Listbox.selectBackground", C["accent"])
@@ -204,9 +210,9 @@ class App:
         ttk.Label(strip, text="Sigillo", style="Muted.TLabel").grid(row=0, column=0, sticky="w", padx=(0, 10))
         self.meter = tk.Canvas(strip, height=16, bg=C["card"], highlightthickness=0)
         self.meter.grid(row=0, column=1, sticky="ew")
-        self.meter_label = ttk.Label(strip, width=28, anchor="e")
+        self.meter_label = ttk.Label(strip, width=28, anchor="e", font=self.fonts["mono"])
         self.meter_label.grid(row=0, column=2, sticky="e", padx=(10, 0))
-        self.info_label = ttk.Label(strip, style="Muted.TLabel", font=self.fonts["small"])
+        self.info_label = ttk.Label(strip, style="Muted.TLabel", font=self.fonts["mono"])
         self.info_label.grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
         self.toast = tk.Frame(main, bg=C["card"])
@@ -218,7 +224,7 @@ class App:
                                     wraplength=640, padx=12, pady=10)
         self.toast_label.grid(row=0, column=1, sticky="ew")
         tk.Button(self.toast, text="✕", command=self.hide_toast, bg=C["card"], fg=C["muted"], relief="flat",
-                  bd=0, highlightthickness=0, activebackground=C["card"]).grid(row=0, column=2, padx=8)
+                  bd=0, highlightthickness=0, activebackground=C["line"], activeforeground=C["fg"]).grid(row=0, column=2, padx=8)
         self.toast.grid_remove()
 
     # ------------------------------------------------------------ settings window
@@ -322,11 +328,11 @@ class App:
         s = self.settings
         cam = self._selected_camera()
         if cam is None:
-            messagebox.showerror("ShinobiCam", "Nessuna webcam selezionata.")
+            self.show_toast("error", "Nessuna webcam selezionata. Collegala e premi ↻.")
             return False
         if is_virtual(cam[1]):
-            messagebox.showerror("ShinobiCam", "Hai scelto una webcam virtuale come sorgente.\n"
-                                               "Scegli la webcam fisica, altrimenti l'immagine entra in loop.")
+            self.show_toast("error", "Hai scelto una webcam virtuale come sorgente. Scegli la webcam fisica, "
+                                     "altrimenti l'immagine entra in loop.")
             return False
         s.camera_index = cam[0]
         if self.settings_win is not None:
@@ -346,16 +352,18 @@ class App:
                 "al posto di ShinobiCam, senza alcun messaggio di errore.\n\n"
                 "Chiudi OBS (Cmd+Q) e premi OK per avviare.", icon="warning"):
             return
+        self.preview.config(image="", text="Avvio della webcam…")
+        self.root.update_idletasks()
         try:
             self.pipeline.start(use_virtual_camera=use_vcam)
         except VirtualCameraError as e:
-            self.pipeline.stop()
-            messagebox.showerror("Webcam virtuale", str(e))
+            self.stop()
+            self.show_toast("error", str(e))
             return
         except Exception as e:
             log.exception("avvio")
-            self.pipeline.stop()
-            messagebox.showerror("ShinobiCam", f"Avvio fallito: {e}")
+            self.stop()
+            self.show_toast("error", f"Avvio fallito: {e}")
             return
         self._sync_running()
         self._refresh_status()

@@ -88,14 +88,15 @@ def test_refuses_virtual_camera_as_source(app):
     app.cam_var.set(app.cam_box["values"][1])
     app.start(True)
     assert not app.pipeline.running
-    assert app.shown and "virtuale" in app.shown[-1][1][1]
+    assert "virtuale" in app.toast_text and not app.shown
 
 
 def test_reports_missing_backend(app):
     app.pipeline._vcam_factory = functools.partial(FakeVcam, fail="Webcam virtuale non trovata. Installa OBS")
     app.start(True)
     assert not app.pipeline.running
-    assert app.shown[-1][0] == "showerror" and "OBS" in app.shown[-1][1][1]
+    assert "OBS" in app.toast_text and not app.shown
+    assert app.preview.cget("text") == "Anteprima spenta"   # loading text cleared on failure
 
 
 def test_warns_when_obs_is_open(app, monkeypatch):
