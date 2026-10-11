@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 
 import numpy as np
 
@@ -11,7 +12,8 @@ HINT_NOT_INSTALLED = (
     "Webcam virtuale non trovata.\n"
     "Installa OBS Studio (30 o successivo) da https://obsproject.com, avvialo una volta, "
     "premi 'Avvia videocamera virtuale' e poi 'Ferma videocamera virtuale', chiudi OBS e riprova."
-)
+) + ("\nSu macOS consenti l'estensione fotocamera di OBS quando il sistema lo chiede "
+     "(Impostazioni di Sistema) e, se serve, riavvia il Mac." if sys.platform == "darwin" else "")
 HINT_BUSY = (
     "La webcam virtuale e' gia' in uso.\n"
     "Chiudi OBS Studio (o ferma la sua 'Videocamera virtuale') e qualsiasi altra istanza di ShinobiCam, poi riprova."

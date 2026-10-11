@@ -40,3 +40,16 @@ def test_built_bundle_contains_resources():
     assert (internal / "models" / "hand_landmarker.task").is_file()
     assert (internal / "assets" / "log.png").is_file()
     assert list((internal / "mediapipe" / "tasks" / "c").glob("libmediapipe.*"))
+
+
+def test_spec_macos_bundle_has_camera_permission():
+    spec = (ROOT / "ShinobiCam.spec").read_text()
+    assert "BUNDLE(" in spec and "NSCameraUsageDescription" in spec and "assets/icon.icns" in spec
+
+
+def test_data_dir_on_macos(monkeypatch, tmp_path):
+    monkeypatch.delenv("SHINOBICAM_HOME")
+    monkeypatch.delenv("APPDATA", raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert config.data_dir() == tmp_path / "Library" / "Application Support" / "ShinobiCam"

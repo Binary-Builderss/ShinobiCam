@@ -117,3 +117,12 @@ def test_settings_roundtrip_and_bad_values(isolated_home):
     assert (s.threshold, s.fps, s.backend, s.cooldown_s) == (0.6, 24, "obs", 3.0)
     p.write_text("{broken")
     assert Settings.load() == Settings()
+
+
+def test_mac_camera_names_follow_opencv_uniqueid_order():
+    from shinobicam.camera_manager import mac_camera_names
+    js = ('{"SPCameraDataType": ['
+          '{"_name": "OBS Virtual Camera", "spcamera_unique-id": "7626645E"},'
+          '{"_name": "FaceTime HD Camera", "spcamera_unique-id": "47B4B64B"},'
+          '{"_name": "iPhone Camera", "spcamera_unique-id": "CA47AC04"}]}')
+    assert mac_camera_names(js) == ["FaceTime HD Camera", "OBS Virtual Camera", "iPhone Camera"]

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -278,7 +279,8 @@ class App:
             recog = "nessun sigillo registrato"
         else:
             recog = f"{st['profile']} - conf {st['confidence']:.2f}" + (" (in tenuta...)" if st["holding"] else "")
-        f9 = "F9 globale" if self.hotkey.ok else "F9 (solo con finestra attiva)"
+        f9 = "F9 globale" if self.hotkey.ok else ("fn+F9 (solo con finestra attiva)" if sys.platform == "darwin"
+                                                 else "F9 (solo con finestra attiva)")
         self.status_label.config(text=f"Webcam: {st['camera']}\nFPS: {st['fps']:.1f}   Fase: {st['phase']}\n"
                                       f"Riconoscimento: {recog}\nScorciatoia: {f9}")
         self.conf_bar["value"] = st["confidence"]
@@ -303,11 +305,14 @@ class App:
 
 def run() -> None:
     root = tk.Tk()
+    from .config import resource_path
     try:
-        from .config import resource_path
-        root.iconbitmap(str(resource_path("assets/icon.ico")))
+        if sys.platform == "win32":
+            root.iconbitmap(str(resource_path("assets/icon.ico")))
+        else:
+            root.iconphoto(True, tk.PhotoImage(file=str(resource_path("assets/log.png"))))
     except tk.TclError:
-        pass  # .ico unsupported outside Windows
+        log.warning("icona finestra non caricata")
     App(root)
     log.info("dati utente in %s", data_dir())
     root.mainloop()

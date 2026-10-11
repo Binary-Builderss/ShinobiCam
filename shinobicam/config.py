@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 RESOLUTIONS = {"1280x720": (1280, 720), "640x360": (640, 360), "640x480": (640, 480)}
 FPS_CHOICES = (30, 24, 15)
-BACKENDS = ("obs", "unitycapture")
+BACKENDS = ("obs", "unitycapture") if sys.platform == "win32" else ("obs",)
 MODEL_RELPATH = "models/hand_landmarker.task"
 LOG_SPRITE_RELPATH = "assets/log.png"
 
@@ -26,12 +26,14 @@ def resource_path(relpath: str) -> Path:
 
 
 def data_dir() -> Path:
-    """Writable per-user folder (%APPDATA%\\ShinobiCam on Windows)."""
+    """Writable per-user folder: %APPDATA%\\ShinobiCam (Windows), ~/Library/Application Support/ShinobiCam (macOS)."""
     root = os.environ.get("SHINOBICAM_HOME")
     if root:
         d = Path(root)
     elif os.environ.get("APPDATA"):
         d = Path(os.environ["APPDATA"]) / APP_NAME
+    elif sys.platform == "darwin":
+        d = Path.home() / "Library" / "Application Support" / APP_NAME
     else:
         d = Path.home() / ".shinobicam"
     d.mkdir(parents=True, exist_ok=True)

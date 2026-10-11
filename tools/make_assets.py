@@ -16,4 +16,5 @@ if __name__ == "__main__":
     square = Image.new("RGBA", (side, side))
     square.paste(rgba, ((side - rgba.width) // 2, (side - rgba.height) // 2))
     square.save(ROOT / "assets" / "icon.ico", sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+    square.resize((512, 512), Image.LANCZOS).save(ROOT / "assets" / "icon.icns")
     print("assets aggiornati")

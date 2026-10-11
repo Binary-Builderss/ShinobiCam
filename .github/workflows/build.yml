@@ -1,4 +1,4 @@
-name: build-windows
+name: build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,3 +25,19 @@ jobs:
         with:
           name: ShinobiCam-win64
           path: dist/ShinobiCam-win64.zip
+
+  macos:
+    runs-on: macos-latest   # Apple Silicon: mediapipe has no macOS Intel wheels
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Setup
+        run: ./scripts/setup.sh
+      - name: Test, build, selftest
+        run: ./scripts/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ShinobiCam-macos-arm64
+          path: dist/ShinobiCam-macos-arm64.zip

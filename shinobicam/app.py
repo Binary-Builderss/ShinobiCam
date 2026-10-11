@@ -83,7 +83,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="ShinobiCam")
     ap.add_argument("--selftest", action="store_true", help="verifica modello, asset e backend; esito in selftest.txt")
     ap.add_argument("--simulate", metavar="OUT.mp4", help="genera un video dimostrativo dell'effetto, senza webcam")
-    a = ap.parse_args(argv)
+    a, _ = ap.parse_known_args(argv)  # Finder may add -psn_* to .app launches
     setup_logging()
     if a.selftest:
         return selftest()

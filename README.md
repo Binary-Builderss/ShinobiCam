@@ -1,6 +1,6 @@
 # ShinobiCam — Kawarimi no Jutsu per Microsoft Teams
 
-ShinobiCam è una webcam virtuale per Windows 10/11. Riconosce il sigillo ninja che hai registrato e
+ShinobiCam è una webcam virtuale per Windows 10/11 e macOS (Apple Silicon). Riconosce il sigillo ninja che hai registrato e
 riproduce la tecnica della sostituzione: una nuvola di fumo ti copre, sparisci e al tuo posto
 compare un tronco di legno. Dopo circa 2 secondi torna il fumo e ricompari. L'effetto viene
 applicato al video inviato a Teams, quindi lo vedono anche gli altri partecipanti.
@@ -17,7 +17,7 @@ webcam fisica ─▶ ShinobiCam (mani → sigillo → fumo/tronco) ─▶ OBS Vi
 
 | Cosa | Note |
 |---|---|
-| Windows 10 o 11, 64 bit | |
+| Windows 10 o 11, 64 bit **oppure** macOS 13+ su Apple Silicon (M1 o successivi) | I Mac Intel non sono supportati: mediapipe non pubblica pacchetti per macOS Intel. |
 | Una webcam fisica | |
 | **OBS Studio 30 o successivo** | Serve solo per registrare il driver "OBS Virtual Camera". ShinobiCam **non** può installare driver da solo. |
 
@@ -35,13 +35,29 @@ Python non serve per usare l'app: basta l'eseguibile.
 > `unitycapture` ([Unity Capture](https://github.com/schellingb/UnityCapture), dispositivo
 > "Unity Video Capture"), ma è DirectShow-only e non l'ho verificato con Teams.
 
+### Su macOS
+
+Al punto 2, quando premi **Avvia videocamera virtuale** in OBS, macOS chiede di consentire
+l'**estensione fotocamera** di OBS. Approvala in Impostazioni di Sistema; in alcuni casi serve un
+riavvio. Le altre regole valgono anche qui, OBS compreso: deve restare chiuso mentre usi ShinobiCam.
+
 ## 2. Installazione
+
+**Windows**
 
 1. Estrai `ShinobiCam-win64.zip` dove preferisci (es. `C:\Programmi\ShinobiCam`).
 2. Avvia `ShinobiCam\ShinobiCam.exe`.
 
 Se Windows SmartScreen avvisa che l'app non è riconosciuta: **Ulteriori informazioni → Esegui comunque**
 (l'eseguibile non è firmato digitalmente).
+
+**macOS**
+
+1. Estrai `ShinobiCam-macos-arm64.zip` e sposta `ShinobiCam.app` in **Applicazioni**.
+2. Al primo avvio fai **clic destro → Apri**. L'app ha solo una firma ad-hoc e non è notarizzata,
+   quindi Gatekeeper la blocca col doppio clic. Se macOS la dichiara "danneggiata", esegui
+   `xattr -dr com.apple.quarantine /Applications/ShinobiCam.app`.
+3. Quando avvii la webcam, consenti l'accesso alla **Fotocamera**.
 
 ## 3. Primo utilizzo
 
@@ -64,14 +80,20 @@ Sequenza dell'effetto: fumo (0,5 s) → tronco (1,8–2,5 s, regolabile) → fum
 
 ### F9 (attivazione manuale)
 
-F9 viene registrato come scorciatoia **globale**, quindi funziona anche quando la finestra attiva
-è Teams. Se un'altra app usa già F9, il pannello Stato mostra "F9 (solo con finestra attiva)".
+Su Windows F9 viene registrato come scorciatoia **globale**, quindi funziona anche quando la
+finestra attiva è Teams. Se un'altra app usa già F9, il pannello Stato mostra "F9 (solo con
+finestra attiva)".
+
+Su macOS F9 funziona **solo con la finestra di ShinobiCam attiva** e va premuto con **fn+F9**.
+Durante una riunione usa il sigillo, oppure clicca **Testa sostituzione**. Su Mac non ho
+implementato una scorciatoia globale: richiederebbe il permesso Accessibilità e librerie che
+con Tkinter tendono a causare crash.
 
 ## 4. Configurare Microsoft Teams
 
 1. Avvia ShinobiCam e premi **Avvia webcam virtuale**. Il pallino diventa verde:
    "Webcam virtuale attiva: OBS Virtual Camera".
-2. In Teams: **… (Impostazioni e altro) → Impostazioni → Dispositivi → Fotocamera** → scegli
+2. In Teams (anche su Mac): **… (Impostazioni e altro) → Impostazioni → Dispositivi → Fotocamera** → scegli
    **OBS Virtual Camera**. Durante una riunione puoi farlo anche dalla freccia accanto al
    pulsante **Fotocamera**.
 3. Se il dispositivo non compare, chiudi completamente Teams (anche dall'icona nell'area di
@@ -97,7 +119,8 @@ riceve il video della webcam senza modifiche. Per spegnere tutto premi **Arresta
 | Debug | mostra landmark delle mani e confidenza **solo nell'anteprima locale**; a Teams non arrivano | subito |
 | Carica tronco PNG | usa un tuo PNG con trasparenza al posto del tronco incluso | al prossimo jutsu |
 
-I dati utente (impostazioni, sigillo, sfondo, log) sono in `%APPDATA%\ShinobiCam`.
+I dati utente (impostazioni, sigillo, sfondo, log) sono in `%APPDATA%\ShinobiCam` su Windows
+e in `~/Library/Application Support/ShinobiCam` su macOS.
 
 Il tronco incluso è un asset originale generato via codice (`tools/make_assets.py`). Non vengono
 usati materiali grafici di terzi.
@@ -117,6 +140,9 @@ usati materiali grafici di terzi.
 | Durante il tronco si vede "un fantasma" di me | Lo sfondo non è più valido (luce cambiata, webcam spostata, esposizione automatica): ricalibra lo sfondo. |
 | FPS bassi / CPU alta | Usa 640×360 e/o 24 FPS. Il riconoscimento gira su un thread separato e non rallenta il video. |
 | Riconoscimento "non disponibile" | Il modello `models\hand_landmarker.task` manca dal pacchetto: reinstalla lo zip. Nel frattempo F9 funziona. |
+| macOS: "webcam non disponibile" anche se la webcam funziona | Impostazioni di Sistema → Privacy e sicurezza → Fotocamera: abilita ShinobiCam (o il Terminale, se lo avvii da sorgente). |
+| macOS: l'app si chiude appena avvio la webcam | Usa l'app generata da `scripts/build.sh`: contiene il permesso fotocamera nell'Info.plist. |
+| macOS: "Webcam virtuale non trovata" con OBS installato | Apri OBS, avvia la videocamera virtuale e approva l'estensione in Impostazioni di Sistema; poi riavvia il Mac. |
 | Qualcos'altro | Allega `%APPDATA%\ShinobiCam\shinobicam.log`. Esegui `ShinobiCam.exe --selftest` e leggi `%APPDATA%\ShinobiCam\selftest.txt`. |
 
 ---
@@ -135,6 +161,14 @@ powershell -ExecutionPolicy Bypass -File scripts\setup.ps1   # .venv, dipendenze
 Con `simulate` puoi usare anche immagini tue: `--background stanza.png --person io.png`
 (stessa risoluzione), oppure `--no-plate` per vedere la modalità semplificata.
 
+Su macOS:
+
+```bash
+./scripts/setup.sh                                  # .venv, dipendenze, modello, controllo OBS
+.venv/bin/python -m shinobicam                      # GUI (il Terminale chiederà il permesso Fotocamera)
+.venv/bin/python -m pytest -q
+```
+
 ### Build dell'eseguibile
 
 ```powershell
@@ -148,8 +182,11 @@ Lo script esegue i test, lancia PyInstaller (`ShinobiCam.spec`, build `--onedir`
   (modello, asset, `libmediapipe.dll`);
 - `dist\ShinobiCam-win64.zip`, da distribuire.
 
-Il workflow `.github/workflows/build-windows.yml` fa la stessa cosa su un runner Windows di
-GitHub e pubblica lo zip come artifact.
+Su macOS `./scripts/build.sh` crea `dist/ShinobiCam.app` (con il permesso fotocamera
+nell'Info.plist), ne esegue il selftest e produce `dist/ShinobiCam-macos-arm64.zip`.
+
+Il workflow `.github/workflows/build.yml` fa la stessa cosa su runner Windows e macOS di
+GitHub e pubblica gli zip come artifact.
 
 ### Dipendenze (versioni bloccate)
 
@@ -160,7 +197,7 @@ GitHub e pubblica lo zip come artifact.
 | numpy | 2.4.6 | Ultima serie compatibile con Python 3.11 (la 2.5 richiede 3.12). |
 | pyvirtualcam | 0.15.0 | Backend OBS / Unity Capture su Windows. |
 | pillow | 12.3.0 | Anteprima Tk e icona. |
-| pygrabber | 0.2 | Nomi delle webcam via DirectShow (solo Windows). |
+| pygrabber | 0.2 | Nomi delle webcam via DirectShow (solo Windows). Su macOS i nomi arrivano da `system_profiler`, nessuna dipendenza in più. |
 | pyinstaller / pytest | 6.22.3 / 9.1.1 | Build e test. |
 
 Note sul packaging: mediapipe ≥ 0.10.30 carica `libmediapipe.dll` tramite `ctypes` da
@@ -204,17 +241,25 @@ l'immagine reale. I test verificano che il fumo copra il 100% dell'area nel mome
 
 ## 8. Stato della verifica
 
-Verificato (su macOS, dove è stato sviluppato):
+Verificato su macOS (Apple Silicon):
 
-- 48 test automatici superati: gesti, soglie/cooldown, macchina a stati, rendering, composizione
+- 51 test automatici superati: gesti, soglie/cooldown, macchina a stati, rendering, composizione
   con sfondo, modello mancante, webcam assente o persa, backend non installato o occupato,
   arresto durante l'animazione, asset nel bundle, overlay di debug assente dal flusso inviato,
   GUI Tk;
 - cattura da webcam reale a 720p e MediaPipe su frame reali (~18 ms per inferenza);
 - build PyInstaller con lo stesso `.spec` ed esecuzione del binario congelato (`--selftest` e `--simulate`);
-- messaggio reale di pyvirtualcam quando OBS non è installato.
+- messaggio reale di pyvirtualcam quando OBS non è installato;
+- **flusso completo su Mac**: webcam reale → effetto → OBS Virtual Camera a 30 FPS. Ho riletto
+  il dispositivo virtuale da un altro processo, come fa un'app di videochiamata, e c'erano
+  fumo, tronco e ritorno;
+- `scripts/setup.sh` e `scripts/build.sh`, `ShinobiCam.app` con permesso fotocamera, selftest
+  dell'app che apre la OBS Virtual Camera;
+- nomi delle webcam su Mac nello stesso ordine degli indici OpenCV (verificato inviando un
+  colore noto alla camera virtuale).
 
-**Non verificato**: l'esecuzione su Windows, l'eseguibile `.exe`, gli script PowerShell, il
+**Non verificato**: Teams su Mac (il dispositivo virtuale funziona, ma non ho aperto Teams),
+l'avvio di `ShinobiCam.app` da Finder su un altro Mac (Gatekeeper), l'esecuzione su Windows, l'eseguibile `.exe`, gli script PowerShell, il
 backend OBS su Windows e la comparsa della webcam virtuale in Microsoft Teams. Non avevo
 accesso a una macchina Windows. Il workflow GitHub Actions compila e fa il selftest dell'exe su
 Windows a ogni push, ma non può provare Teams. Prima di usarlo in una riunione vera, provalo

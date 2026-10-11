@@ -1,7 +1,9 @@
 """Physical webcam: enumeration, capture thread with auto-reconnect, latest-frame slot."""
 from __future__ import annotations
 
+import json
 import logging
+import subprocess
 import sys
 import threading
 import time
@@ -55,6 +57,11 @@ def list_cameras(max_probe: int = 5) -> list[tuple[int, str]]:
             return list(enumerate(FilterGraph().get_input_devices()))
         except Exception as e:  # pygrabber missing or COM failure: fall back to probing
             log.warning("enumerazione DirectShow fallita: %s", e)
+    if sys.platform == "darwin":
+        try:
+            return list(enumerate(mac_camera_names()))
+        except Exception as e:
+            log.warning("enumerazione system_profiler fallita: %s", e)
     found = []
     for i in range(max_probe):
         cap = _new_capture(i)
@@ -62,6 +69,20 @@ def list_cameras(max_probe: int = 5) -> list[tuple[int, str]]:
             found.append((i, f"Webcam {i}"))
         cap.release()
     return found
+
+
+def mac_camera_names(profiler_json: str | None = None) -> list[str]:
+    """Camera names in OpenCV index order.
+
+    OpenCV's AVFoundation backend sorts devices by uniqueID (checked empirically: OBS Virtual Camera
+    at the predicted index). ponytail: relies on that OpenCV detail, re-check if a future OpenCV reorders.
+    """
+    if profiler_json is None:
+        profiler_json = subprocess.run(["system_profiler", "SPCameraDataType", "-json"],
+                                       capture_output=True, text=True, timeout=15, check=True).stdout
+    cams = json.loads(profiler_json)["SPCameraDataType"]
+    cams.sort(key=lambda c: c.get("spcamera_unique-id", ""))
+    return [c.get("_name") or f"Webcam {i}" for i, c in enumerate(cams)]
 
 
 def _new_capture(index: int) -> cv2.VideoCapture:
