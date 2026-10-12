@@ -37,15 +37,17 @@ def app(monkeypatch):
     a.on_close()
 
 
-def pump(app, seconds):
-    end = time.monotonic() + seconds
-    while time.monotonic() < end:
+def pump_until(app, cond, timeout=5.0):
+    """Waits on a condition, not a fixed delay: CI runners can be several times slower."""
+    end = time.monotonic() + timeout
+    while not cond() and time.monotonic() < end:
         app.root.update()
         time.sleep(0.01)
+    return cond()
 
 
 def test_guided_flow_start_steps_and_stop(app):
-    assert app.cam_box["values"][1].endswith("(virtuale)")
+    assert list(app.cam_box["values"]) == ["Integrated Webcam"]  # virtual camera is output only: not offered
     assert app.cam_var.get() == "Integrated Webcam"          # physical camera preselected
     assert app.onair.cget("text").endswith("SPENTO")
     app.record_seal()                                         # not running yet -> hint, no crash
@@ -55,19 +57,16 @@ def test_guided_flow_start_steps_and_stop(app):
     app.open_settings()
     app.res_var.set("640x360")
     app.start(True)
-    pump(app, 0.6)
-    assert app.pipeline.running and app._photo is not None
+    assert pump_until(app, lambda: app._photo is not None and app.step_start.badge.cget("text") == "✓")
+    assert app.pipeline.running
     assert "IN ONDA" in app.onair.cget("text") and "Fake Virtual Camera" in app.onair.cget("text")
-    assert app.step_start.badge.cget("text") == "✓"
     assert app.btn_main.cget("text").endswith("Arresta")
     assert str(app.video_boxes[0].cget("state")) == "disabled"  # resolution locked while running
 
     app.calibrate_bg()
-    pump(app, 0.3)
-    assert app.step_bg.badge.cget("text") == "…"
+    assert pump_until(app, lambda: app.step_bg.badge.cget("text") == "…")
     app.record_seal()
-    pump(app, 0.3)
-    assert app.step_seal.badge.cget("text") == "…"
+    assert pump_until(app, lambda: app.step_seal.badge.cget("text") == "…")
     app.test_jutsu()
     app.restore_normal()
     assert app.settings.recognition_enabled is False and "Webcam normale" in app.toast_text
@@ -78,8 +77,7 @@ def test_guided_flow_start_steps_and_stop(app):
 
 def test_preview_only_mode_badge(app):
     app.start(False)
-    pump(app, 0.3)
-    assert "SOLO ANTEPRIMA" in app.onair.cget("text")
+    assert pump_until(app, lambda: "SOLO ANTEPRIMA" in app.onair.cget("text"))
 
 
 def test_pipeline_events_become_toasts_not_popups(app):
@@ -90,11 +88,12 @@ def test_pipeline_events_become_toasts_not_popups(app):
     assert app.toast_text == ""
 
 
-def test_refuses_virtual_camera_as_source(app):
-    app.cam_var.set(app.cam_box["values"][1])
+def test_only_virtual_cameras_means_no_source(app, monkeypatch):
+    monkeypatch.setattr(ui, "list_cameras", lambda: [(1, "OBS Virtual Camera")])
+    app.refresh_cameras()
+    assert list(app.cam_box["values"]) == [] and "fisica" in app.toast_text
     app.start(True)
     assert not app.pipeline.running
-    assert "virtuale" in app.toast_text and not app.shown
 
 
 def test_reports_missing_backend(app):
@@ -125,7 +124,7 @@ def test_settings_window_rows_do_not_overlap(app):
 
 def test_compact_mode_mirrors_state(app):
     app.start(True)
-    pump(app, 0.4)
+    assert pump_until(app, lambda: app.pipeline.status()["vcam"])
     app.enter_compact()
     assert app.compact and "IN ONDA" in app.mini_onair.cget("text")
     app.show_toast("warning", "webcam persa")
@@ -159,7 +158,7 @@ def test_autostart(monkeypatch):
     ui.Settings(autostart=True).save()
     a = make_app(monkeypatch)
     try:
-        pump(a, 1.0)
-        assert a.pipeline.running and "IN ONDA" in a.onair.cget("text")
+        assert pump_until(a, lambda: "IN ONDA" in a.onair.cget("text"))
+        assert a.pipeline.running
     finally:
         a.on_close()

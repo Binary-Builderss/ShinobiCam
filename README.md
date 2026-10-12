@@ -71,10 +71,11 @@ La colonna a sinistra è una checklist in 4 passi: ogni passo mostra un numero f
 cosa ricevono Teams/Discord: **IN ONDA** (rosso), **SOLO ANTEPRIMA** (ambra) o **SPENTO**.
 Gli avvisi compaiono in una barra sotto l'anteprima, senza finestre da chiudere.
 
-1. **Avvia la webcam**: scegli la webcam fisica (non "OBS Virtual Camera": l'app lo blocca) e
-   premi **Avvia webcam virtuale**. Per provare senza inviare nulla usa **Solo anteprima (non va
-   in onda)**. Su macOS, se OBS è aperto, l'app avvisa: chiudilo, altrimenti Teams/Discord
-   vedono OBS al posto di ShinobiCam.
+1. **Avvia la webcam**: con **OBS chiuso**, scegli la tua webcam e premi **Avvia webcam
+   virtuale**. "OBS Virtual Camera" non compare nell'elenco: è l'uscita di ShinobiCam, non una
+   sorgente. Per provare senza inviare nulla usa **Solo anteprima (non va in onda)**. Se OBS è
+   aperto l'app avvisa: chiudilo, altrimenti l'avvio fallisce (Windows) o Teams/Discord vedono
+   OBS al posto di ShinobiCam (macOS).
 2. **Calibra lo sfondo**: parte subito un conto alla rovescia di 5 secondi, visibile in grande
    nell'anteprima. Esci dall'inquadratura e l'app acquisisce la stanza vuota, così durante la
    sostituzione sparisci davvero. La webcam non deve muoversi: se la sposti o cambia molto la
@@ -162,8 +163,9 @@ usati materiali grafici di terzi.
 | Sintomo | Soluzione |
 |---|---|
 | "Webcam virtuale non trovata" | Installa OBS 30+ ed esegui la procedura del §1 (avvia/ferma la videocamera virtuale una volta). |
-| "La webcam virtuale è già in uso" | Chiudi OBS o ferma la sua videocamera virtuale; chiudi altre istanze di ShinobiCam. |
-| Teams non mostra "OBS Virtual Camera" | Riavvia Teams dopo aver avviato ShinobiCam; controlla che il badge in alto dica "IN ONDA". |
+| "La webcam virtuale è già in uso" | Quasi sempre è OBS con la sua videocamera virtuale attiva. Chiudi OBS del tutto (non basta fermare la scena) e altre istanze di ShinobiCam, poi premi di nuovo Avvia. |
+| Teams non mostra "OBS Virtual Camera" | OBS deve essere chiuso e il badge di ShinobiCam deve dire "IN ONDA". Poi chiudi Teams del tutto (anche dall'icona vicino all'orologio) e riaprilo. |
+| In ShinobiCam non trovo "OBS Virtual Camera" tra le webcam | È voluto: è la destinazione del video, non la sorgente. Scegli la webcam fisica; in Teams sceglierai "OBS Virtual Camera". |
 | Teams mostra un'immagine nera o ferma | Premi **Arresta** e poi **Avvia webcam virtuale**; verifica che nessun'altra app stia usando la webcam fisica (Teams compreso: in Teams scegli OBS Virtual Camera, non la webcam fisica). |
 | "Webcam non disponibile, nuovo tentativo..." | La webcam fisica è occupata da un'altra app o è scollegata. Chiudi le altre app o ricollegala: la riconnessione è automatica. |
 | Il sigillo non viene riconosciuto | Guarda la barra Sigillo (o attiva Debug nelle Impostazioni): se resta sotto la soglia, abbassala oppure registra di nuovo il sigillo con luce migliore. Usa F9 come riserva. |

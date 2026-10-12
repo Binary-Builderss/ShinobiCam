@@ -14,9 +14,12 @@ HINT_NOT_INSTALLED = (
     "premi 'Avvia videocamera virtuale' e poi 'Ferma videocamera virtuale', chiudi OBS e riprova."
 ) + ("\nSu macOS consenti l'estensione fotocamera di OBS quando il sistema lo chiede "
      "(Impostazioni di Sistema) e, se serve, riavvia il Mac." if sys.platform == "darwin" else "")
+CLOSE_OBS = ("chiudi OBS Studio anche dall'icona vicino all'orologio" if sys.platform == "win32"
+             else "chiudi OBS Studio con Cmd+Q")
 HINT_BUSY = (
-    "La webcam virtuale e' gia' in uso.\n"
-    "Chiudi OBS Studio (o ferma la sua 'Videocamera virtuale') e qualsiasi altra istanza di ShinobiCam, poi riprova."
+    "La webcam virtuale di OBS e' gia' in uso, di solito da OBS stesso.\n"
+    "ShinobiCam usa quella webcam al posto di OBS: " + CLOSE_OBS +
+    " (non basta fermare la scena) e chiudi altre istanze di ShinobiCam, poi premi di nuovo Avvia."
 )
 
 
@@ -25,12 +28,14 @@ class VirtualCameraError(RuntimeError):
 
 
 def obs_running() -> bool:
-    """True if OBS Studio is open. Only checked on macOS, where sharing the device fails silently
-    (Teams/Discord get OBS's scene); on Windows pyvirtualcam already reports the device as busy."""
-    if sys.platform != "darwin":
-        return False
+    """True if OBS Studio is open: its own virtual camera would take the device that ShinobiCam feeds
+    (busy error on Windows, silent swap to OBS's scene on macOS)."""
     import subprocess
     try:
+        if sys.platform == "win32":
+            out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq obs64.exe", "/NH"], capture_output=True, text=True,
+                                 timeout=5, creationflags=subprocess.CREATE_NO_WINDOW).stdout
+            return "obs64.exe" in out.lower()
         return subprocess.run(["pgrep", "-x", "OBS"], capture_output=True, timeout=5).returncode == 0
     except (OSError, subprocess.SubprocessError):
         return False

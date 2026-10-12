@@ -16,7 +16,7 @@ from .camera_manager import is_virtual, list_cameras
 from .config import BACKENDS, FPS_CHOICES, LOG_SPRITE_RELPATH, RESOLUTIONS, Settings, data_dir, resource_path
 from .hotkey import GlobalHotkey
 from .pipeline import Pipeline
-from .virtual_camera import VirtualCameraError, obs_running
+from .virtual_camera import CLOSE_OBS, VirtualCameraError, obs_running
 
 log = logging.getLogger(__name__)
 
@@ -400,15 +400,14 @@ class App:
 
     # ------------------------------------------------------------ actions
     def refresh_cameras(self) -> None:
-        self.cameras = list_cameras()
-        values = [n + ("  (virtuale)" if is_virtual(n) else "") for _, n in self.cameras]
+        # Virtual cameras are ShinobiCam's output, never its source (it would loop): not offered at all.
+        self.cameras = [(i, n) for i, n in list_cameras() if not is_virtual(n)]
+        values = [n for _, n in self.cameras]
         self.cam_box["values"] = values
-        current = [v for (i, _), v in zip(self.cameras, values) if i == self.settings.camera_index]
-        physical = [v for (i, n), v in zip(self.cameras, values) if not is_virtual(n)]
-        self.cam_var.set(current[0] if current and not current[0].endswith("(virtuale)")
-                         else (physical or values or [""])[0])
+        current = [n for i, n in self.cameras if i == self.settings.camera_index]
+        self.cam_var.set((current or values or [""])[0])
         if not values:
-            self.show_toast("warning", "Nessuna webcam trovata. Collegala e premi ↻.")
+            self.show_toast("warning", "Nessuna webcam fisica trovata. Collegala e premi ↻.")
 
     def _apply_live(self) -> None:
         s = self.settings
@@ -436,11 +435,7 @@ class App:
         s = self.settings
         cam = self._selected_camera()
         if cam is None:
-            self.show_toast("error", "Nessuna webcam selezionata. Collegala e premi ↻.")
-            return False
-        if is_virtual(cam[1]):
-            self.show_toast("error", "Hai scelto una webcam virtuale come sorgente. Scegli la webcam fisica, "
-                                     "altrimenti l'immagine entra in loop.")
+            self.show_toast("error", "Nessuna webcam fisica selezionata. Collegala e premi ↻.")
             return False
         s.camera_index = cam[0]
         if self.settings_win is not None:
@@ -456,9 +451,9 @@ class App:
             return
         if use_vcam and obs_running() and not messagebox.askokcancel(
                 "OBS è aperto",
-                "OBS Studio è aperto. Se la sua webcam virtuale è attiva, Teams e Discord vedranno OBS "
-                "al posto di ShinobiCam, senza alcun messaggio di errore.\n\n"
-                "Chiudi OBS (Cmd+Q) e premi OK per avviare.", icon="warning"):
+                "OBS Studio è aperto. ShinobiCam usa la webcam virtuale di OBS al posto di OBS stesso: "
+                "se OBS resta aperto, Teams e Discord vedono OBS oppure l'avvio fallisce.\n\n"
+                f"Per prima cosa {CLOSE_OBS}, poi premi OK.", icon="warning"):
             return
         self.preview.config(image="", text="Avvio della webcam…")
         self.root.update_idletasks()
@@ -611,7 +606,7 @@ class App:
             self.mini_onair.config(**badge)
 
         if not running:
-            self.step_start.set("todo", "Scegli la tua webcam fisica, non quella virtuale.")
+            self.step_start.set("todo", "Tieni OBS chiuso. Scegli la tua webcam e premi Avvia.")
         elif "connessa" not in st["camera"]:
             self.step_start.set("warn", f"Webcam: {st['camera']}")
         else:
@@ -642,7 +637,8 @@ class App:
                                running)
 
         if st["vcam"]:
-            self.step_app.set("done", f"Scegli la fotocamera «{st['vcam']}» nelle impostazioni video.")
+            self.step_app.set("done", f"Nelle impostazioni video scegli «{st['vcam']}». "
+                                      "Se non compare, chiudi e riapri Teams o Discord.")
         else:
             self.step_app.set("todo", "Dopo l'avvio, scegli «OBS Virtual Camera» come fotocamera.")
 

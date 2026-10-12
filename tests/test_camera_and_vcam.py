@@ -76,6 +76,11 @@ def test_camera_reconnects_after_loss():
     cam.stop()
 
 
+def test_obs_running_never_raises():
+    from shinobicam.virtual_camera import obs_running
+    assert obs_running() in (True, False)
+
+
 def test_virtual_camera_names_flagged():
     assert is_virtual("OBS Virtual Camera")
     assert not is_virtual("Integrated Webcam")
