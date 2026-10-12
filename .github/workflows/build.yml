@@ -3,6 +3,7 @@ name: build
 on:
   push:
     branches: [main]
+    tags: ["v*"]          # git tag v1.0.0 && git push origin v1.0.0 -> GitHub Release
   pull_request:
   workflow_dispatch:
 
@@ -46,3 +47,24 @@ jobs:
         with:
           name: ShinobiCam-macos-arm64
           path: dist/ShinobiCam-macos-arm64.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag e versione coincidono
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' shinobicam/__init__.py)
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME ma __version__ = $version"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Crea la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "ShinobiCam $GITHUB_REF_NAME" --generate-notes
