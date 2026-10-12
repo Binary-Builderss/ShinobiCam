@@ -33,4 +33,17 @@ try {
 
 Write-Host "== Pacchetto"
 Compress-Archive -Path "dist\ShinobiCam" -DestinationPath "dist\ShinobiCam-win64.zip" -Force
-Write-Host "Fatto: $exe  e  dist\ShinobiCam-win64.zip" -ForegroundColor Green
+
+Write-Host "== Installer"
+$iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
+          "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $iscc) { $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source }
+if ($iscc) {
+    $version = (Select-String -Path "shinobicam\__init__.py" -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+    & $iscc /Qp "/DMyAppVersion=$version" "installer\ShinobiCam.iss"
+    if ($LASTEXITCODE -ne 0) { throw "Inno Setup fallito." }
+    Write-Host "Fatto: dist\ShinobiCam-$version-setup.exe  e  dist\ShinobiCam-win64.zip" -ForegroundColor Green
+} else {
+    Write-Warning "Inno Setup 6 non trovato: installer saltato. Installalo con: winget install JRSoftware.InnoSetup"
+    Write-Host "Fatto: $exe  e  dist\ShinobiCam-win64.zip" -ForegroundColor Green
+}

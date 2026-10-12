@@ -18,13 +18,18 @@ jobs:
       - name: Setup
         shell: pwsh
         run: ./scripts/setup.ps1
-      - name: Test, build, selftest
+      - name: Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Test, build, selftest, installer
         shell: pwsh
         run: ./scripts/build.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: ShinobiCam-win64
-          path: dist/ShinobiCam-win64.zip
+          path: |
+            dist/ShinobiCam-win64.zip
+            dist/ShinobiCam-*-setup.exe
+          if-no-files-found: error
 
   macos:
     runs-on: macos-latest   # Apple Silicon: mediapipe has no macOS Intel wheels

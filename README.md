@@ -45,18 +45,23 @@ riavvio. Le altre regole valgono anche qui, OBS compreso: deve restare chiuso me
 
 **Windows**
 
-1. Estrai `ShinobiCam-win64.zip` dove preferisci (es. `C:\Programmi\ShinobiCam`).
-2. Avvia `ShinobiCam\ShinobiCam.exe`.
+1. Esegui `ShinobiCam-<versione>-setup.exe`. Non servono diritti di amministratore: l'app va in
+   `%LOCALAPPDATA%\Programs\ShinobiCam` e compare nel menu Start (icona sul desktop facoltativa).
+2. A fine installazione, se la webcam virtuale di OBS non risulta installata, l'installer lo dice.
+3. Per aggiornare esegui il nuovo setup sopra il vecchio; per rimuovere usa **Impostazioni → App**.
+   Impostazioni, sigillo e sfondo restano in `%APPDATA%\ShinobiCam`.
+
+In alternativa estrai `ShinobiCam-win64.zip` dove preferisci e avvia `ShinobiCam\ShinobiCam.exe`.
 
 Se Windows SmartScreen avvisa che l'app non è riconosciuta: **Ulteriori informazioni → Esegui comunque**
-(l'eseguibile non è firmato digitalmente).
+(installer ed eseguibile non sono firmati: serve un certificato di firma codice per Windows).
 
 **macOS**
 
 1. Estrai `ShinobiCam-macos-arm64.zip` e sposta `ShinobiCam.app` in **Applicazioni**.
-2. Al primo avvio fai **clic destro → Apri**. L'app ha solo una firma ad-hoc e non è notarizzata,
-   quindi Gatekeeper la blocca col doppio clic. Se macOS la dichiara "danneggiata", esegui
-   `xattr -dr com.apple.quarantine /Applications/ShinobiCam.app`.
+2. Se lo zip è stato compilato con firma Developer ID e notarizzazione (§7), basta il doppio clic.
+   Altrimenti (firma ad-hoc) al primo avvio fai **clic destro → Apri**; se macOS la dichiara
+   "danneggiata", esegui `xattr -dr com.apple.quarantine /Applications/ShinobiCam.app`.
 3. Quando avvii la webcam, consenti l'accesso alla **Fotocamera**.
 
 ## 3. Primo utilizzo
@@ -207,13 +212,44 @@ Lo script esegue i test, lancia PyInstaller (`ShinobiCam.spec`, build `--onedir`
 
 - `dist\ShinobiCam\ShinobiCam.exe`, con le risorse in `dist\ShinobiCam\_internal\`
   (modello, asset, `libmediapipe.dll`);
-- `dist\ShinobiCam-win64.zip`, da distribuire.
+- `dist\ShinobiCam-win64.zip`;
+- `dist\ShinobiCam-<versione>-setup.exe`, l'installer, se è installato
+  [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`winget install JRSoftware.InnoSetup`).
+  Lo script dell'installer è `installer\ShinobiCam.iss`; la versione viene da
+  `shinobicam/__init__.py`.
 
 Su macOS `./scripts/build.sh` crea `dist/ShinobiCam.app` (con il permesso fotocamera
 nell'Info.plist), ne esegue il selftest e produce `dist/ShinobiCam-macos-arm64.zip`.
 
 Il workflow `.github/workflows/build.yml` fa la stessa cosa su runner Windows e macOS di
-GitHub e pubblica gli zip come artifact.
+GitHub e pubblica zip e installer come artifact.
+
+### Firma e notarizzazione su macOS
+
+Senza variabili d'ambiente l'app ha una firma ad-hoc: gira sul Mac che l'ha compilata, ma sugli
+altri Gatekeeper la blocca. Per distribuirla serve l'Apple Developer Program:
+
+1. **Certificato Developer ID Application** (lo può creare solo l'Account Holder): Xcode →
+   Impostazioni → Account → Gestisci certificati → **+** → *Developer ID Application*.
+   Controlla con `security find-identity -v -p codesigning`. Il certificato *Apple Development*
+   non basta: vale solo per lo sviluppo.
+2. **Credenziali per la notarizzazione**, una volta sola: crea una password specifica per l'app
+   su <https://account.apple.com>, poi
+   `xcrun notarytool store-credentials shinobicam --apple-id TUA_EMAIL --team-id TEAM_ID`
+   (il Team ID è in developer.apple.com → Account → Membership).
+3. Build firmata e notarizzata:
+
+   ```bash
+   SHINOBICAM_SIGN_ID="Developer ID Application: Nome Cognome (TEAM_ID)" \
+   SHINOBICAM_NOTARY_PROFILE=shinobicam ./scripts/build.sh
+   ```
+
+   La firma usa l'hardened runtime con l'entitlement fotocamera (`installer/entitlements.plist`);
+   lo script verifica la firma, invia l'app ad Apple, attende l'esito, "graffa" il ticket
+   all'app e controlla con `spctl` che Gatekeeper la accetti.
+
+Dopo il passaggio dalla firma ad-hoc a quella Developer ID macOS chiede di nuovo il permesso
+Fotocamera: l'identità dell'app è cambiata.
 
 ### Dipendenze (versioni bloccate)
 
@@ -286,10 +322,15 @@ Verificato su macOS (Apple Silicon):
 - nomi delle webcam su Mac nello stesso ordine degli indici OpenCV (verificato inviando un
   colore noto alla camera virtuale);
 - Discord su Mac con OBS Virtual Camera, provato dall'utente;
-- avvio dell'app: 23 s al primo avvio (cache dei font), 1,6 s dai successivi.
+- avvio dell'app: 23 s al primo avvio (cache dei font), 1,6 s dai successivi;
+- firma con hardened runtime ed entitlement fotocamera (provata con un certificato Apple
+  Development): `codesign --verify --deep --strict` OK e selftest dell'app firmata OK
+  (MediaPipe, OBS Virtual Camera, elenco webcam).
 
 **Non verificato**: Teams su Mac (il dispositivo virtuale funziona, ma non ho aperto Teams),
-l'avvio di `ShinobiCam.app` da Finder su un altro Mac (Gatekeeper), l'esecuzione su Windows, l'eseguibile `.exe`, gli script PowerShell, il
+la notarizzazione (serve il certificato Developer ID), la cattura dalla webcam nell'app firmata
+con hardened runtime, l'avvio di `ShinobiCam.app` da Finder su un altro Mac (Gatekeeper),
+l'installer Inno Setup, l'esecuzione su Windows, l'eseguibile `.exe`, gli script PowerShell, il
 backend OBS su Windows, la nitidezza della UI con la scala schermo di Windows (DPI awareness) e la comparsa della webcam virtuale in Microsoft Teams. Non avevo
 accesso a una macchina Windows. Il workflow GitHub Actions compila e fa il selftest dell'exe su
 Windows a ogni push, ma non può provare Teams. Prima di usarlo in una riunione vera, provalo

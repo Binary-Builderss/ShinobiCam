@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import subprocess
 import sys
 import tkinter as tk
 import tkinter.font as tkfont
@@ -11,7 +13,7 @@ import cv2
 from PIL import Image, ImageTk
 
 from .camera_manager import is_virtual, list_cameras
-from .config import BACKENDS, FPS_CHOICES, RESOLUTIONS, Settings, data_dir, resource_path
+from .config import BACKENDS, FPS_CHOICES, LOG_SPRITE_RELPATH, RESOLUTIONS, Settings, data_dir, resource_path
 from .hotkey import GlobalHotkey
 from .pipeline import Pipeline
 from .virtual_camera import VirtualCameraError, obs_running
@@ -76,15 +78,25 @@ def apply_theme(root: tk.Tk) -> dict[str, tkfont.Font]:
     st.map("Step.TButton", background=[("disabled", C["panel"]), ("pressed", "#454b5b"), ("active", "#3c4250")])
     st.configure("Link.TButton", background=C["panel"], foreground=C["muted"], padding=(4, 2))
     st.map("Link.TButton", background=[("active", C["panel"])], foreground=[("active", C["fg"])])
-    st.configure("TCheckbutton", background=C["panel"], foreground=C["fg"])
+    st.configure("TCheckbutton", background=C["panel"], foreground=C["fg"], indicatorbackground=C["card"],
+                 indicatorforeground=C["ink"], upperbordercolor=C["line"], lowerbordercolor=C["line"])
     st.map("TCheckbutton", background=[("active", C["panel"])],
-           indicatorcolor=[("selected", C["accent"]), ("!selected", C["card"])])
+           indicatorbackground=[("disabled", C["panel"]), ("selected", C["accent"]), ("pressed", C["line"])])
     st.configure("TCombobox", fieldbackground=C["card"], background=C["card"], foreground=C["fg"], arrowcolor=C["fg"],
                  padding=4)
     st.map("TCombobox", fieldbackground=[("readonly", C["card"]), ("disabled", C["panel"])],
            foreground=[("disabled", C["muted"])], selectbackground=[("readonly", C["card"])],
            selectforeground=[("readonly", C["fg"])], arrowcolor=[("disabled", C["muted"])])
-    st.configure("Horizontal.TScale", background=C["accent"], troughcolor=C["card"], bordercolor=C["panel"])
+    thumbs = []
+    for color in (C["accent"], C["accent_hi"]):
+        img = tk.PhotoImage(master=root, width=12, height=18)
+        img.put(color, to=(0, 0, 12, 18))
+        thumbs.append(img)
+    root._thumb_images = thumbs  # Tk images vanish when garbage-collected
+    st.element_create("Thumb.slider", "image", thumbs[0], ("active", thumbs[1]), ("pressed", thumbs[1]))
+    st.layout("Horizontal.TScale", [("Horizontal.Scale.trough", {"sticky": "nswe", "children": [
+        ("Thumb.slider", {"side": "left", "sticky": ""})]})])
+    st.configure("Horizontal.TScale", background=C["panel"], troughcolor=C["card"], bordercolor=C["line"])
     for cls in ("TButton", "TCheckbutton", "Button"):
         root.option_add(f"*{cls}.cursor", "hand2")
     root.option_add("*TCombobox*Listbox.background", C["card"])
@@ -106,7 +118,9 @@ class Step:
         self.badge.grid(row=0, column=0, rowspan=2, padx=(0, 10))
         ttk.Label(self.frame, text=title, style="Card.TLabel", font=fonts["h"]).grid(row=0, column=1, sticky="w")
         self.status = ttk.Label(self.frame, style="CardMuted.TLabel", wraplength=230, justify="left")
-        self.status.grid(row=1, column=1, sticky="w")
+        self.status.grid(row=1, column=1, sticky="ew")
+        # wraplength = own width can only shrink the request, so no geometry feedback loop
+        self.status.bind("<Configure>", lambda e: self.status.config(wraplength=max(e.width, 120)))
         self.thumb = tk.Label(self.frame, bd=0, bg=C["card"])
         self._thumb_src = None
         self._photo = None
@@ -317,7 +331,7 @@ class App:
         for label, hint, var, lo, hi in [
                 ("Soglia confidenza", "più alta = meno attivazioni per errore", self.thr_var, 0.3, 0.95),
                 ("Pausa dopo il jutsu", "secondi in cui il sigillo è ignorato", self.cool_var, 3.0, 5.0),
-                ("Durata del tronco", "secondi", self.sub_var, 1.8, 2.5)]:
+                ("Durata del tronco", "quanto resta visibile il tronco", self.sub_var, 1.8, 2.5)]:
             r = next(rows)
             ttk.Label(body, text=label).grid(row=r, column=0, sticky="w", pady=(6, 0))
             ttk.Scale(body, from_=lo, to=hi, variable=var, length=220,
@@ -339,8 +353,9 @@ class App:
         ttk.Button(buttons, text="Carica PNG…", command=self.load_sprite).pack(side="left")
         ttk.Button(buttons, text="Predefinito", command=lambda: self.set_sprite("")).pack(side="left", padx=(6, 0))
 
-        full(ttk.Label(body, text=f"Dati salvati in {data_dir()}", style="Muted.TLabel", font=self.fonts["small"],
-                       wraplength=400), (16, 0))
+        full(ttk.Label(body, text=f"Impostazioni, sigillo, sfondo e log: {data_dir()}", style="Muted.TLabel",
+                       font=self.fonts["small"], wraplength=400), (16, 0))
+        full(ttk.Button(body, text="Apri la cartella dei dati", style="Link.TButton", command=self.open_data_dir))
         self._apply_live()
         self._sync_running()
 
@@ -407,7 +422,10 @@ class App:
             for lbl, text in zip(self.scale_values, (f"{s.threshold:.2f}", f"{s.cooldown_s:.1f}s",
                                                      f"{s.substitution_ms / 1000:.1f}s")):
                 lbl.config(text=text)
-            self.sprite_label.config(text=f"In uso: {self.pipeline.sprite_source}")
+            src = self.pipeline.sprite_source
+            name = ("tronco incluso" if src == str(resource_path(LOG_SPRITE_RELPATH)) else
+                    "tronco generato dal programma" if src == "procedurale" else os.path.basename(src))
+            self.sprite_label.config(text=f"In uso: {name}")
 
     def _selected_camera(self) -> tuple[int, str] | None:
         values = list(self.cam_box["values"])
@@ -508,6 +526,13 @@ class App:
         self._apply_live()
         self.show_toast("info", "Webcam normale: effetto interrotto e riconoscimento automatico disattivato.")
 
+    def open_data_dir(self) -> None:
+        path = str(data_dir())
+        if sys.platform == "win32":
+            os.startfile(path)
+        else:
+            subprocess.Popen(["open" if sys.platform == "darwin" else "xdg-open", path])
+
     def load_sprite(self) -> None:
         path = filedialog.askopenfilename(title="PNG del tronco (con trasparenza)", filetypes=[("PNG", "*.png")])
         if path:
@@ -586,7 +611,7 @@ class App:
             self.mini_onair.config(**badge)
 
         if not running:
-            self.step_start.set("todo", "Scegli la webcam fisica (non quella virtuale).")
+            self.step_start.set("todo", "Scegli la tua webcam fisica, non quella virtuale.")
         elif "connessa" not in st["camera"]:
             self.step_start.set("warn", f"Webcam: {st['camera']}")
         else:
@@ -610,7 +635,8 @@ class App:
         elif st["recording_seal"]:
             self.step_seal.set("busy", "Esegui il sigillo e tienilo…", enabled=False)
         elif st["profile"]:
-            self.step_seal.set("done", "Registrato. La foto ti ricorda la posa.", running)
+            self.step_seal.set("done", "Registrato. La foto ti ricorda la posa." if p.seal_image is not None
+                               else "Registrato. Registralo di nuovo per salvare la foto della posa.", running)
         else:
             self.step_seal.set("todo", "Nessun sigillo registrato." + ("" if running else " Avvia prima la webcam."),
                                running)
