@@ -2,6 +2,7 @@ import functools
 import time
 import tkinter as tk
 
+import numpy as np
 import pytest
 
 import shinobicam.ui as ui
@@ -9,8 +10,7 @@ from handgen import seal
 from test_pipeline import POSE, FakeCamera, FakeDetector, FakeVcam
 
 
-@pytest.fixture
-def app(monkeypatch):
+def make_app(monkeypatch):
     try:
         root = tk.Tk()
     except tk.TclError:
@@ -27,6 +27,12 @@ def app(monkeypatch):
     p._vcam_factory = FakeVcam
     p._detector_factory = functools.partial(FakeDetector, hands=seal(*POSE))
     a.shown = shown
+    return a
+
+
+@pytest.fixture
+def app(monkeypatch):
+    a = make_app(monkeypatch)
     yield a
     a.on_close()
 
@@ -103,3 +109,57 @@ def test_warns_when_obs_is_open(app, monkeypatch):
     monkeypatch.setattr(ui, "obs_running", lambda: True)
     app.start(True)                     # askokcancel patched to "Annulla"
     assert app.shown[-1][0] == "ask" and not app.pipeline.running
+
+
+def test_settings_window_rows_do_not_overlap(app):
+    app.open_settings()
+    body = app.settings_win.winfo_children()[0]
+    rows: dict[int, list[tuple[int, int]]] = {}
+    for w in body.grid_slaves():
+        gi = w.grid_info()
+        rows.setdefault(int(gi["row"]), []).append((int(gi["column"]), int(gi["columnspan"])))
+    for r, cells in rows.items():
+        used = [c for col, span in cells for c in range(col, col + span)]
+        assert len(used) == len(set(used)), f"riga {r}: {cells}"
+
+
+def test_compact_mode_mirrors_state(app):
+    app.start(True)
+    pump(app, 0.4)
+    app.enter_compact()
+    assert app.compact and "IN ONDA" in app.mini_onair.cget("text")
+    app.show_toast("warning", "webcam persa")
+    assert app.mini_msg.cget("text") == "webcam persa"
+    app.exit_compact()
+    assert not app.compact
+
+
+def test_keyboard_shortcuts(app):
+    app.root.update()
+    app.root.focus_force()
+    app.root.update()
+    if app.root.focus_get() is None:
+        pytest.skip("la finestra di test non riceve il focus")
+    app.root.event_generate("<space>", when="tail")
+    app.root.update()
+    assert "Avvia prima" in app.toast_text            # Space = Testa sostituzione
+    app.root.event_generate("<Escape>", when="tail")
+    app.root.update()
+    assert "Webcam normale" in app.toast_text         # Esc = Webcam normale
+
+
+def test_thumbnails_for_background_and_seal(app):
+    assert not app.step_bg.thumb.winfo_manager()
+    app.pipeline.background.plate = np.zeros((720, 1280, 3), np.uint8)
+    app._refresh_status()
+    assert app.step_bg.thumb.winfo_manager() == "grid"
+
+
+def test_autostart(monkeypatch):
+    ui.Settings(autostart=True).save()
+    a = make_app(monkeypatch)
+    try:
+        pump(a, 1.0)
+        assert a.pipeline.running and "IN ONDA" in a.onair.cget("text")
+    finally:
+        a.on_close()

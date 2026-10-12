@@ -76,9 +76,13 @@ Gli avvisi compaiono in una barra sotto l'anteprima, senza finestre da chiudere.
    luce, ricalibra.
    - Senza calibrazione l'app funziona in **modalità semplificata**: il tronco compare davanti a te
      ma resti visibile. Il passo resta segnato con **!**.
+   - Dopo la calibrazione il passo mostra una miniatura dello sfondo: se ci sei dentro anche tu,
+     ricalibra.
 3. **Registra il sigillo**: dopo 3 secondi di preparazione esegui il sigillo e tienilo per 4
    secondi (barra REC nell'anteprima), muovendo leggermente le mani. Le mani devono essere ben
-   illuminate e dentro l'inquadratura.
+   illuminate e dentro l'inquadratura: se l'app non le vede per mezzo secondo, la barra diventa
+   ambra con "Non vedo le mani". Al termine il passo mostra una foto della posa registrata, come
+   promemoria.
 4. **Usala in Teams o Discord**: vedi §4.
 
 Prova: esegui il sigillo. La barra **Sigillo** sotto l'anteprima mostra la confidenza e una tacca
@@ -87,6 +91,15 @@ jutsu. Se non scatta, premi **F9** o **Testa sostituzione**.
 
 Sequenza dell'effetto: fumo (0,5 s) → tronco (1,8–2,5 s, regolabile) → fumo (0,5 s) → cooldown
 (3–5 s, regolabile), durante il quale il sigillo viene ignorato.
+
+### Durante la riunione
+
+- **Modalità compatta** (link in fondo alla colonna sinistra): sostituisce la finestra con una
+  finestrina sempre in primo piano con badge IN ONDA, barra Sigillo, **Testa sostituzione**,
+  **Webcam normale** e gli avvisi. **Espandi** (o la chiusura della finestrina) riporta quella
+  completa.
+- **Tasti rapidi** (con una finestra di ShinobiCam attiva): **Spazio** = Testa sostituzione,
+  **Esc** = Webcam normale. Se il focus è su un pulsante, Spazio preme quel pulsante.
 
 ### F9 (attivazione manuale)
 
@@ -125,6 +138,7 @@ Risoluzione, FPS e backend sono bloccati mentre la webcam è avviata.
 |---|---|---|
 | Risoluzione | 1280×720 (predefinita), 640×360 o 640×480 per PC lenti | al prossimo Avvia |
 | FPS | 30 / 24 / 15 | al prossimo Avvia |
+| Avvia all'apertura | avvia la webcam virtuale appena apri l'app | al prossimo avvio dell'app |
 | Webcam virtuale | `obs` (predefinito) / `unitycapture` | al prossimo Avvia |
 | Soglia confidenza | più alta = meno falsi positivi, più bassa = riconosce più facilmente | subito |
 | Pausa dopo il jutsu | secondi in cui il sigillo è ignorato (3–5 s) | subito |
@@ -256,10 +270,11 @@ l'immagine reale. I test verificano che il fumo copra il 100% dell'area nel mome
 
 Verificato su macOS (Apple Silicon):
 
-- 54 test automatici superati: gesti, soglie/cooldown, macchina a stati, rendering, composizione
+- 60 test automatici superati: gesti, soglie/cooldown, macchina a stati, rendering, composizione
   con sfondo, modello mancante, webcam assente o persa, backend non installato o occupato,
   arresto durante l'animazione, asset nel bundle, overlay di debug assente dal flusso inviato,
-  GUI Tk (checklist guidata, badge IN ONDA, avvisi non modali);
+  GUI Tk (checklist guidata, badge IN ONDA, avvisi non modali, modalità compatta, tasti rapidi,
+  avvio automatico, finestra Impostazioni senza sovrapposizioni);
 - cattura da webcam reale a 720p e MediaPipe su frame reali (~18 ms per inferenza);
 - build PyInstaller con lo stesso `.spec` ed esecuzione del binario congelato (`--selftest` e `--simulate`);
 - messaggio reale di pyvirtualcam quando OBS non è installato;
@@ -275,7 +290,7 @@ Verificato su macOS (Apple Silicon):
 
 **Non verificato**: Teams su Mac (il dispositivo virtuale funziona, ma non ho aperto Teams),
 l'avvio di `ShinobiCam.app` da Finder su un altro Mac (Gatekeeper), l'esecuzione su Windows, l'eseguibile `.exe`, gli script PowerShell, il
-backend OBS su Windows e la comparsa della webcam virtuale in Microsoft Teams. Non avevo
+backend OBS su Windows, la nitidezza della UI con la scala schermo di Windows (DPI awareness) e la comparsa della webcam virtuale in Microsoft Teams. Non avevo
 accesso a una macchina Windows. Il workflow GitHub Actions compila e fa il selftest dell'exe su
 Windows a ogni push, ma non può provare Teams. Prima di usarlo in una riunione vera, provalo
 in una riunione di test.

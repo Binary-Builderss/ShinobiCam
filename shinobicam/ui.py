@@ -25,6 +25,16 @@ C = {
 }
 TOAST_COLORS = {"info": C["ok"], "warning": C["warn"], "error": C["err"]}
 TOAST_SECONDS = {"info": 6, "warning": 10, "error": 0}  # 0 = stays until closed or replaced
+THUMB = (160, 90)
+NO_SHORTCUT = ("TButton", "TCheckbutton", "TCombobox", "Button", "TScale")  # widgets that use Space/Esc themselves
+
+
+def to_photo(img, w: int, h: int) -> ImageTk.PhotoImage:
+    """BGR array fitted inside w x h."""
+    fh, fw = img.shape[:2]
+    k = min(w / fw, h / fh)
+    small = cv2.resize(img, (max(int(fw * k), 1), max(int(fh * k), 1)), interpolation=cv2.INTER_AREA)
+    return ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(small, cv2.COLOR_BGR2RGB)))
 
 
 def apply_theme(root: tk.Tk) -> dict[str, tkfont.Font]:
@@ -97,6 +107,9 @@ class Step:
         ttk.Label(self.frame, text=title, style="Card.TLabel", font=fonts["h"]).grid(row=0, column=1, sticky="w")
         self.status = ttk.Label(self.frame, style="CardMuted.TLabel", wraplength=230, justify="left")
         self.status.grid(row=1, column=1, sticky="w")
+        self.thumb = tk.Label(self.frame, bd=0, bg=C["card"])
+        self._thumb_src = None
+        self._photo = None
         self.button = None
         if button:
             self.button = ttk.Button(self.frame, text=button, style="Step.TButton", command=command)
@@ -111,6 +124,19 @@ class Step:
         if self.button:
             self.button.config(state="normal" if enabled else "disabled")
 
+    def set_thumb(self, img) -> None:
+        """BGR array or None. Rebuilt only when a different array is passed (callers replace, never mutate)."""
+        if img is self._thumb_src:
+            return
+        self._thumb_src = img
+        if img is None:
+            self._photo = None
+            self.thumb.grid_remove()
+            return
+        self._photo = to_photo(img, *THUMB)
+        self.thumb.config(image=self._photo)
+        self.thumb.grid(row=2, column=1, sticky="w", pady=(6, 0))
+
 
 class App:
     def __init__(self, root: tk.Tk):
@@ -124,6 +150,8 @@ class App:
         self._toast_job = None
         self.toast_text = ""
         self.settings_win: tk.Toplevel | None = None
+        self.mini: tk.Toplevel | None = None
+        self.compact = False
 
         root.title("ShinobiCam")
         root.minsize(1060, 640)
@@ -131,12 +159,24 @@ class App:
         self.fonts = apply_theme(root)
         self._build()
         self.hotkey = GlobalHotkey(self.pipeline.trigger_manual)
-        if not self.hotkey.ok:
-            root.bind("<F9>", lambda e: self.pipeline.trigger_manual())  # only while this window has focus
+        self._bind_keys(root)
         self.refresh_cameras()
         self._sync_running()
         self._refresh_status()
         self._tick()
+        if self.settings.autostart:
+            root.after(300, lambda: self.start(True))
+
+    def _bind_keys(self, win) -> None:
+        def key(action):
+            def handler(e):
+                if e.widget.winfo_class() not in NO_SHORTCUT:
+                    action()
+            return handler
+        win.bind("<space>", key(self.test_jutsu))
+        win.bind("<Escape>", key(self.restore_normal))
+        if not self.hotkey.ok:
+            win.bind("<F9>", lambda e: self.pipeline.trigger_manual())  # only while this window has focus
 
     # ------------------------------------------------------------ layout
     def _build(self) -> None:
@@ -188,8 +228,11 @@ class App:
         self.hotkey_label = ttk.Label(jutsu, style="Muted.TLabel", font=self.fonts["small"])
         self.hotkey_label.grid(row=2, column=0, columnspan=2, sticky="w")
 
-        ttk.Button(side, text="Impostazioni", style="Link.TButton", command=self.open_settings).pack(
-            anchor="w", side="bottom", pady=(10, 0))
+        links = ttk.Frame(side)
+        links.pack(side="bottom", fill="x", pady=(10, 0))
+        ttk.Button(links, text="Impostazioni", style="Link.TButton", command=self.open_settings).pack(side="left")
+        ttk.Button(links, text="Modalità compatta", style="Link.TButton", command=self.enter_compact).pack(
+            side="right")
 
         main = ttk.Frame(root, style="Bg.TFrame", padding=(14, 0, 18, 14))
         main.grid(row=1, column=1, sticky="nsew")
@@ -238,61 +281,107 @@ class App:
         win.title("Impostazioni - ShinobiCam")
         win.resizable(False, False)
         win.protocol("WM_DELETE_WINDOW", win.withdraw)
+        win.bind("<Escape>", lambda e: win.withdraw())
         body = ttk.Frame(win, padding=18)
         body.pack(fill="both", expand=True)
         body.columnconfigure(1, weight=1)
+        rows = iter(range(100))
 
-        ttk.Label(body, text="Video", style="Section.TLabel").grid(row=0, column=0, columnspan=3, sticky="w")
+        def full(widget, pady=0):
+            widget.grid(row=next(rows), column=0, columnspan=3, sticky="w", pady=pady)
+
+        full(ttk.Label(body, text="Video", style="Section.TLabel"))
         self.res_var = tk.StringVar(value=f"{s.width}x{s.height}")
         self.fps_var = tk.StringVar(value=str(s.fps))
         self.backend_var = tk.StringVar(value=s.backend)
         self.video_boxes = []
-        for r, (label, var, values) in enumerate([("Risoluzione", self.res_var, list(RESOLUTIONS)),
-                                                  ("FPS", self.fps_var, [str(f) for f in FPS_CHOICES]),
-                                                  ("Webcam virtuale", self.backend_var, list(BACKENDS))], start=1):
+        for label, var, values in [("Risoluzione", self.res_var, list(RESOLUTIONS)),
+                                   ("FPS", self.fps_var, [str(f) for f in FPS_CHOICES]),
+                                   ("Webcam virtuale", self.backend_var, list(BACKENDS))]:
+            r = next(rows)
             ttk.Label(body, text=label).grid(row=r, column=0, sticky="w", pady=3)
             box = ttk.Combobox(body, textvariable=var, values=values, state="readonly", width=14)
             box.grid(row=r, column=1, sticky="w", pady=3)
             self.video_boxes.append(box)
         self.video_note = ttk.Label(body, style="Muted.TLabel", font=self.fonts["small"])
-        self.video_note.grid(row=4, column=0, columnspan=3, sticky="w", pady=(2, 12))
+        full(self.video_note, (2, 6))
+        self.autostart_var = tk.BooleanVar(value=s.autostart)
+        full(ttk.Checkbutton(body, text="Avvia la webcam virtuale all'apertura dell'app", variable=self.autostart_var,
+                             command=self._apply_live), (0, 14))
 
-        ttk.Label(body, text="Riconoscimento ed effetto", style="Section.TLabel").grid(row=5, column=0, columnspan=3,
-                                                                                    sticky="w")
+        full(ttk.Label(body, text="Riconoscimento ed effetto", style="Section.TLabel"))
         self.thr_var = tk.DoubleVar(value=s.threshold)
         self.cool_var = tk.DoubleVar(value=s.cooldown_s)
         self.sub_var = tk.DoubleVar(value=s.substitution_ms / 1000)
         self.scale_values = []
-        for r, (label, hint, var, lo, hi) in enumerate([
+        for label, hint, var, lo, hi in [
                 ("Soglia confidenza", "più alta = meno attivazioni per errore", self.thr_var, 0.3, 0.95),
                 ("Pausa dopo il jutsu", "secondi in cui il sigillo è ignorato", self.cool_var, 3.0, 5.0),
-                ("Durata del tronco", "secondi", self.sub_var, 1.8, 2.5)], start=6):
-            ttk.Label(body, text=label).grid(row=r * 2, column=0, sticky="w", pady=(6, 0))
+                ("Durata del tronco", "secondi", self.sub_var, 1.8, 2.5)]:
+            r = next(rows)
+            ttk.Label(body, text=label).grid(row=r, column=0, sticky="w", pady=(6, 0))
             ttk.Scale(body, from_=lo, to=hi, variable=var, length=220,
-                      command=lambda _v: self._apply_live()).grid(row=r * 2, column=1, sticky="ew", pady=(6, 0))
-            value = ttk.Label(body, width=5, anchor="e")
-            value.grid(row=r * 2, column=2, sticky="e", pady=(6, 0))
+                      command=lambda _v: self._apply_live()).grid(row=r, column=1, sticky="ew", pady=(6, 0))
+            value = ttk.Label(body, width=5, anchor="e", font=self.fonts["mono"])
+            value.grid(row=r, column=2, sticky="e", pady=(6, 0))
             self.scale_values.append(value)
-            ttk.Label(body, text=hint, style="Muted.TLabel", font=self.fonts["small"]).grid(row=r * 2 + 1, column=1,
-                                                                                          sticky="w")
+            ttk.Label(body, text=hint, style="Muted.TLabel", font=self.fonts["small"]).grid(
+                row=next(rows), column=1, sticky="w")
         self.debug_var = tk.BooleanVar(value=s.debug)
-        ttk.Checkbutton(body, text="Debug: mostra i punti delle mani (solo in questa anteprima)",
-                        variable=self.debug_var, command=self._apply_live).grid(row=12, column=0, columnspan=3,
-                                                                               sticky="w", pady=(12, 0))
+        full(ttk.Checkbutton(body, text="Debug: mostra i punti delle mani (solo in questa anteprima)",
+                             variable=self.debug_var, command=self._apply_live), (12, 0))
 
-        ttk.Label(body, text="Tronco", style="Section.TLabel").grid(row=13, column=0, columnspan=3, sticky="w",
-                                                                   pady=(16, 0))
+        full(ttk.Label(body, text="Tronco", style="Section.TLabel"), (16, 0))
         self.sprite_label = ttk.Label(body, style="Muted.TLabel", font=self.fonts["small"], wraplength=360)
-        self.sprite_label.grid(row=14, column=0, columnspan=3, sticky="w")
-        row = ttk.Frame(body)
-        row.grid(row=15, column=0, columnspan=3, sticky="w", pady=(6, 0))
-        ttk.Button(row, text="Carica PNG…", command=self.load_sprite).pack(side="left")
-        ttk.Button(row, text="Predefinito", command=lambda: self.set_sprite("")).pack(side="left", padx=(6, 0))
+        full(self.sprite_label)
+        buttons = ttk.Frame(body)
+        full(buttons, (6, 0))
+        ttk.Button(buttons, text="Carica PNG…", command=self.load_sprite).pack(side="left")
+        ttk.Button(buttons, text="Predefinito", command=lambda: self.set_sprite("")).pack(side="left", padx=(6, 0))
 
-        ttk.Label(body, text=f"Dati salvati in {data_dir()}", style="Muted.TLabel", font=self.fonts["small"],
-                  wraplength=400).grid(row=16, column=0, columnspan=3, sticky="w", pady=(16, 0))
+        full(ttk.Label(body, text=f"Dati salvati in {data_dir()}", style="Muted.TLabel", font=self.fonts["small"],
+                       wraplength=400), (16, 0))
         self._apply_live()
         self._sync_running()
+
+    # ------------------------------------------------------------ compact window
+    def _build_mini(self) -> None:
+        win = self.mini = tk.Toplevel(self.root, bg=C["panel"])
+        win.title("ShinobiCam")
+        win.resizable(False, False)
+        win.attributes("-topmost", True)
+        win.protocol("WM_DELETE_WINDOW", self.exit_compact)
+        body = ttk.Frame(win, padding=10)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure((0, 1), weight=1)
+        self.mini_onair = tk.Label(body, font=self.fonts["badge"], padx=10, pady=4)
+        self.mini_onair.grid(row=0, column=0, columnspan=2, sticky="ew")
+        self.mini_meter = tk.Canvas(body, width=300, height=12, bg=C["card"], highlightthickness=0)
+        self.mini_meter.grid(row=1, column=0, columnspan=2, sticky="ew", pady=8)
+        ttk.Button(body, text="Testa sostituzione", style="Step.TButton", command=self.test_jutsu).grid(
+            row=2, column=0, sticky="ew")
+        ttk.Button(body, text="Webcam normale", style="Step.TButton", command=self.restore_normal).grid(
+            row=2, column=1, sticky="ew", padx=(6, 0))
+        self.mini_msg = tk.Label(body, bg=C["panel"], fg=C["muted"], font=self.fonts["small"], wraplength=300,
+                                 justify="left", anchor="w")
+        self.mini_msg.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Button(body, text="Espandi", style="Link.TButton", command=self.exit_compact).grid(
+            row=4, column=0, columnspan=2, sticky="e")
+        self._bind_keys(win)
+
+    def enter_compact(self) -> None:
+        if self.mini is None:
+            self._build_mini()
+        self.compact = True
+        self.mini_msg.config(text=self.toast_text)
+        self.mini.deiconify()
+        self.root.withdraw()
+        self._refresh_status()
+
+    def exit_compact(self) -> None:
+        self.compact = False
+        self.root.deiconify()
+        self.mini.withdraw()
 
     # ------------------------------------------------------------ actions
     def refresh_cameras(self) -> None:
@@ -311,6 +400,7 @@ class App:
         s.recognition_enabled = self.recog_var.get()
         if self.settings_win is not None:
             s.debug = self.debug_var.get()
+            s.autostart = self.autostart_var.get()
             s.threshold = round(self.thr_var.get(), 2)
             s.cooldown_s = round(self.cool_var.get(), 1)
             s.substitution_ms = int(round(self.sub_var.get(), 1) * 1000)
@@ -438,6 +528,8 @@ class App:
         self.toast_bar.config(bg=TOAST_COLORS.get(level, C["err"]))
         self.toast_label.config(text=text)
         self.toast.grid()
+        if self.mini is not None:
+            self.mini_msg.config(text=text, fg=TOAST_COLORS.get(level, C["err"]))
         if self._toast_job:
             self.root.after_cancel(self._toast_job)
             self._toast_job = None
@@ -448,6 +540,8 @@ class App:
         self._toast_job = None
         self.toast_text = ""
         self.toast.grid_remove()
+        if self.mini is not None:
+            self.mini_msg.config(text="")
 
     # ------------------------------------------------------------ periodic refresh
     def _tick(self) -> None:
@@ -455,13 +549,10 @@ class App:
             seq, frame, _ = self.pipeline.preview.peek()
             if frame is not None and seq != self._preview_seq and self.pipeline.running:
                 self._preview_seq = seq
-                w = max(self.preview_box.winfo_width(), 320)
-                h = max(self.preview_box.winfo_height(), 180)
-                fh, fw = frame.shape[:2]
-                k = min(w / fw, h / fh)
-                small = cv2.resize(frame, (max(int(fw * k), 1), max(int(fh * k), 1)), interpolation=cv2.INTER_AREA)
-                self._photo = ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(small, cv2.COLOR_BGR2RGB)))
-                self.preview.config(image=self._photo, text="")
+                if not self.compact:  # hidden window: skip the resize work
+                    self._photo = to_photo(frame, max(self.preview_box.winfo_width(), 320),
+                                           max(self.preview_box.winfo_height(), 180))
+                    self.preview.config(image=self._photo, text="")
             self._ticks += 1
             if self._ticks % 4 == 0:
                 self._refresh_status()
@@ -469,8 +560,8 @@ class App:
             log.exception("aggiornamento UI")
         self.root.after(30, self._tick)
 
-    def _draw_meter(self, conf: float, threshold: float, active: bool) -> None:
-        m = self.meter
+    @staticmethod
+    def _draw_meter(m: tk.Canvas, conf: float, threshold: float, active: bool) -> None:
         m.delete("all")
         w, h = max(m.winfo_width(), 100), int(m.cget("height"))
         if active:
@@ -485,11 +576,14 @@ class App:
         running = p.running
 
         if st["vcam"]:
-            self.onair.config(text=f"●  IN ONDA · {st['vcam']}", bg=C["live"], fg=C["fg"])
+            badge = dict(text=f"●  IN ONDA · {st['vcam']}", bg=C["live"], fg=C["fg"])
         elif running:
-            self.onair.config(text="SOLO ANTEPRIMA · non va in onda", bg=C["warn"], fg=C["ink"])
+            badge = dict(text="SOLO ANTEPRIMA · non va in onda", bg=C["warn"], fg=C["ink"])
         else:
-            self.onair.config(text="SPENTO", bg=C["card"], fg=C["muted"])
+            badge = dict(text="SPENTO", bg=C["card"], fg=C["muted"])
+        self.onair.config(**badge)
+        if self.compact:
+            self.mini_onair.config(**badge)
 
         if not running:
             self.step_start.set("todo", "Scegli la webcam fisica (non quella virtuale).")
@@ -508,12 +602,15 @@ class App:
             self.step_bg.set("warn", "Non calibrato: resti visibile dietro al tronco." +
                              ("" if running else " Avvia prima la webcam."), running)
 
+        self.step_bg.set_thumb(p.background.plate)
+        self.step_seal.set_thumb(p.seal_image if st["profile"] else None)
+
         if st["recognition_error"]:
             self.step_seal.set("warn", "Riconoscimento non disponibile: usa «Testa sostituzione» o F9.", False)
         elif st["recording_seal"]:
             self.step_seal.set("busy", "Esegui il sigillo e tienilo…", enabled=False)
         elif st["profile"]:
-            self.step_seal.set("done", "Registrato. Puoi registrarlo di nuovo quando vuoi.", running)
+            self.step_seal.set("done", "Registrato. La foto ti ricorda la posa.", running)
         else:
             self.step_seal.set("todo", "Nessun sigillo registrato." + ("" if running else " Avvia prima la webcam."),
                                running)
@@ -524,7 +621,8 @@ class App:
             self.step_app.set("todo", "Dopo l'avvio, scegli «OBS Virtual Camera» come fotocamera.")
 
         recog_active = running and s.recognition_enabled and st["profile"] and not st["recognition_error"]
-        self._draw_meter(st["confidence"], s.threshold, bool(recog_active))
+        for canvas in (self.meter, self.mini_meter) if self.compact else (self.meter,):
+            self._draw_meter(canvas, st["confidence"], s.threshold, bool(recog_active))
         if not running:
             meter_text = ""
         elif not s.recognition_enabled:
@@ -541,7 +639,7 @@ class App:
         f9 = ("F9 funziona anche con Teams in primo piano." if self.hotkey.ok else
               "fn+F9 funziona solo con questa finestra attiva." if sys.platform == "darwin" else
               "F9 funziona solo con questa finestra attiva.")
-        self.hotkey_label.config(text=f9)
+        self.hotkey_label.config(text=f"{f9}\nSpazio: testa sostituzione.  Esc: webcam normale.")
 
         while not p.events.empty():
             level, text = p.events.get_nowait()
@@ -557,6 +655,12 @@ class App:
 
 
 def run() -> None:
+    if sys.platform == "win32":
+        try:  # without this Windows bitmap-scales the whole window at 125-150% and text looks blurry
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except (AttributeError, OSError):
+            log.warning("DPI awareness non impostata")
     root = tk.Tk()
     try:
         if sys.platform == "win32":

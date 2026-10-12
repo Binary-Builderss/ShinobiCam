@@ -193,6 +193,7 @@ def test_gesture_recording_through_pipeline(monkeypatch, isolated_home):
         assert p.start_gesture_recording()
         level, text = p.events.get(timeout=3)
         assert level == "info" and "registrato" in text
+        assert (isolated_home / pl.SEAL_IMAGE).exists() and p.seal_image is not None
         assert (isolated_home / pl.PROFILE_FILE).exists() and p.profile.confidence(
             descriptor(dedupe_hands(to_aspect(seal(*POSE), W / H)))) > 0.9
     finally:

@@ -27,6 +27,7 @@ from .virtual_camera import VirtualCamera
 
 log = logging.getLogger(__name__)
 PROFILE_FILE = "gesture_profile.json"
+SEAL_IMAGE = "seal.jpg"
 STALE_CAMERA_S = 1.0
 
 
@@ -39,11 +40,29 @@ def placeholder_frame(w: int, h: int, text: str) -> np.ndarray:
     return img
 
 
-def put_banner(img: np.ndarray, text: str, progress: float | None = None) -> None:
-    cv2.rectangle(img, (0, 0), (img.shape[1], 44), (0, 0, 0), -1)
-    cv2.putText(img, text, (14, 31), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (26, 122, 255), 2, cv2.LINE_AA)
+def put_banner(img: np.ndarray, text: str, progress: float | None = None, warn: bool = False) -> None:
+    cv2.rectangle(img, (0, 0), (img.shape[1], 44), (49, 165, 242) if warn else (16, 12, 10), -1)
+    cv2.putText(img, text, (14, 31), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (14, 18, 21) if warn else (48, 122, 232), 2,
+                cv2.LINE_AA)
     if progress is not None:
         cv2.rectangle(img, (0, 40), (int(img.shape[1] * progress), 44), (60, 56, 229), -1)
+
+
+def seal_thumbnail(frame: np.ndarray, hands: list[np.ndarray]) -> np.ndarray:
+    """Crop around the hands with landmarks drawn: a reminder of the recorded pose."""
+    img = frame.copy()
+    draw_hands(img, hands)
+    h, w = img.shape[:2]
+    pts = np.concatenate(hands) * (w, h)
+    (x0, y0), (x1, y1) = pts.min(0), pts.max(0)
+    side = max(x1 - x0, y1 - y0) * 1.5
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    x0, x1 = int(max(cx - side * 0.8, 0)), int(min(cx + side * 0.8, w))  # a bit wider than tall
+    y0, y1 = int(max(cy - side / 2, 0)), int(min(cy + side / 2, h))
+    crop = img[y0:y1, x0:x1] if x1 > x0 and y1 > y0 else img  # hands partly off-frame: whole frame
+    k = 360 / max(crop.shape[:2])
+    return cv2.resize(crop, (max(int(crop.shape[1] * k), 1), max(int(crop.shape[0] * k), 1)),
+                      interpolation=cv2.INTER_AREA)
 
 
 def put_countdown(img: np.ndarray, seconds: float) -> None:
@@ -70,6 +89,7 @@ class Pipeline:
         self.events: queue.SimpleQueue = queue.SimpleQueue()   # (level, message) for the UI
         self.profile = GestureProfile.load(data_dir() / PROFILE_FILE)
         self.background = BackgroundManager(data_dir() / "background.png")
+        self.seal_image = cv2.imread(str(data_dir() / SEAL_IMAGE)) if self.profile else None
         sprite, self.sprite_source = load_log_sprite(settings.log_image)
         self.engine = EffectEngine(sprite, self._timing())
         self.trigger = GestureTrigger()
@@ -256,7 +276,8 @@ class Pipeline:
         if remaining is not None:
             put_countdown(img, remaining)
         if cal:
-            put_banner(img, cal.message(now), None if remaining is not None else cal.progress(now))
+            put_banner(img, cal.message(now), None if remaining is not None else cal.progress(now),
+                       warn=cal.hands_lost(now))
         elif bg_msg:
             put_banner(img, bg_msg)
         return img
@@ -275,7 +296,7 @@ class Pipeline:
                 aspect = frame.shape[1] / frame.shape[0]
                 cal = self._calibrator
                 if cal is not None:
-                    cal.feed(hands, aspect, now)
+                    cal.feed(hands, aspect, now, frame)
                     if cal.done(now):
                         self._finish_recording(cal)
                     continue
@@ -303,6 +324,10 @@ class Pipeline:
             return
         profile.save(data_dir() / PROFILE_FILE)
         self.profile = profile
+        if cal.snapshot is not None:
+            thumb = seal_thumbnail(*cal.snapshot)
+            cv2.imwrite(str(data_dir() / SEAL_IMAGE), thumb)
+            self.seal_image = thumb
         self.trigger.reset()
         counts = ", ".join(f"{len(v)} con {n} mano/i" for n, v in sorted(profile.samples.items()))
         self.events.put(("info", f"Sigillo registrato ({counts})."))

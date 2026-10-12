@@ -55,6 +55,7 @@ class Settings:
     substitution_ms: int = 2000
     log_image: str = ""           # custom PNG, empty = bundled log
     debug: bool = False
+    autostart: bool = False       # start the virtual camera when the app opens
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":

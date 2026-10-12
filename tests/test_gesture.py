@@ -102,6 +102,7 @@ def test_calibrator_flow():
         cal.feed(seal(*TIGER), ASPECT, 1.0 + i / 30)
     cal.feed([], ASPECT, 1.5)             # no hands: counted as frame, no sample
     assert cal.done(2.0) and len(cal.descriptors) == 30
+    assert not cal.hands_lost(1.99)
     assert cal.result().confidence(desc(seal(*TIGER))) > 0.9
 
 
@@ -118,3 +119,13 @@ def test_real_model_runs_on_empty_frame():
         assert det.detect(np.zeros((720, 1280, 3), np.uint8), 0) == []  # same ts: auto-incremented
     finally:
         det.close()
+
+
+def test_calibrator_warns_live_when_hands_leave():
+    cal = GestureCalibrator(now=0.0, countdown_s=1.0, record_s=2.0)
+    assert not cal.hands_lost(0.5) and not cal.hands_lost(1.3)    # countdown, then grace at start
+    frame = np.zeros((10, 10, 3), np.uint8)
+    cal.feed(seal(*TIGER), ASPECT, 1.4, frame)
+    cal.feed([], ASPECT, 2.0)
+    assert cal.hands_lost(2.0) and "Non vedo le mani" in cal.message(2.0)
+    assert cal.snapshot is not None and cal.snapshot[0] is frame
